@@ -1,0 +1,33 @@
+{
+  "name": "balloon_trajectory",
+  "version": "0.1.0",
+  "description": "Balloon trajectory predictor",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "babel src --out-dir lib --source-maps",
+    "start": "webpack-dev-server --content-base ./static",
+    "prepublish": "npm run build"
+  },
+  "author": "Fabien Fleutot",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-stage-0": "^6.24.1",
+    "webpack-cli": "^2.1.5",
+    "webpack-dev-server": "^3.1.4"
+  },
+  "dependencies": {
+    "babel-loader": "^7.1.4",
+    "d3": "^5.4.0",
+    "html-webpack-plugin": "^3.2.0",
+    "ol": "^4.6.5",
+    "webpack": "^4.8.3",
+    "webpack-cli": "^2.1.3"
+  }
+}

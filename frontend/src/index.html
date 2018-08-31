@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trajectoire ballon</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <style type="text/css">
+        h1, p {
+            font-family: 'sans-serif';
+        }
+        td {
+            font-family: 'sans-serif';
+            font-size: 9pt;
+            white-space: nowrap;
+        }
+        th {
+            font-family: 'sans-serif';
+            font-weight: bold;
+            background-color: lightgray;
+        }
+        table {
+            border: 1px solid lightgray;
+        }
+        #map {
+            width: 100%;
+            height: 500px;
+        }
+        table select { width: 100%; background-color: white; }
+        table input[type=button] { width: 100%; }
+   </style>
+</head>
+
+<body>
+
+  <h1>Prévision de trajectoire ballon</h1>
+
+  <p>
+      Cette application permet de prévoir la trajectoire d'un ballon, d'après ses caractéristiques physique
+      et les prévisions météo de MeteoFrance ou de la NOAA. Elle est très largement inspirée par le tableur
+      développé par Michel Maignan pour Planète Sciences.
+  </p>
+
+  <table><tr><td>
+      <form>
+          <input type="hidden" name="id"/>
+          <table id="form-table">
+              <tr>
+                  <th>Modèle météo :</th>
+                  <td colspan="2">
+                      <select name="model" class="traj-updater">
+                          <optgroup label="Météo France">
+                              <option value="AROME_0.025">Arome 1/40° France</option>
+                              <option value="ARPEGE_0.1">Arpège 1/10° Europe</option>
+                              <option value="ARPEGE_0.5" selected>Arpège 1/2° Monde</option>
+                          </optgroup>
+                          <optgroup label="NOAA">
+                              <option value="GFS_0.5">GFS 1/2° Monde</option>
+                          </optgroup>
+                      </select>
+                  </td>
+              </tr>
+              <tr>
+                  <th>Lieu du lâcher :</th>
+                  <td colspan="2">
+                      Latitude  <input type="number" name="latitude"  value="43.5" step="0.001" class="traj-updater"/>
+                      Longitude <input type="number" name="longitude" value="1.5" step="0.001" class="traj-updater"/>
+                  </td>
+              </tr>
+              <tr>
+                  <th>Date du lâcher :</th>
+                  <td>
+                      <select name="date"></select>
+                  </td><td>
+                      <input type="button" name="download_forecast" value="Charger plus de prévisions..."/>
+                  </td>
+              </tr>
+              <tr><th colspan="3">Caractéristiques du Ballon :</th></tr>
+              <tr>
+                  <th>Masse de l'enveloppe :</th>
+                  <td colspan="2">
+                      <select name="balloon_mass_kg" class="impacts_suggestions">
+                          <option value="0.5">500g</option>
+                          <option value="1">1kg</option>
+                          <option value="1.2">1.2kg</option>
+                          <option value="2">2kg</option>
+                      </select>
+                  </td>
+              </tr>
+              <tr>
+                  <th>Masse de la charge :</th>
+                  <td><input type="number" name="payload_mass_kg" step="0.001" value="1" class="impacts_suggestions"/>kg</td>
+                  <td>Max suggéré = <span id="suggested_payload_mass">-</span>kg</td>
+              </tr>
+              <tr>
+                  <th>Volume d'hélium au décollage :</th>
+                  <td><input type="number" name="ground_volume_m3" step="0.01" value="2.75" class="impacts_suggestions"/>m³</td>
+                  <td><span id="suggested_volume">-</span>m³ suggérés</td>
+              </tr>
+              <tr>
+                  <th>Force ascensionnelle libre :</th>
+                  <td><span id='lift'>-</span>N</td>
+                  <td><span id='suggested_lift'>-</span>N suggérés</td>
+              </tr>
+              <tr><td colspan="3"><input type="button" name="update_trajectory" value="Mettre à jour la trajectoire"/></td></tr>
+              <tr><td colspan="3"><div id="progress"></div></td></tr>
+          </table>
+      </form>
+  </td><td class="position_details">
+      Sous le curseur:
+      <table>
+          <tr><th>Latitude&nbsp;:</th><td><span class="coordinates_1"></span>°</td></tr>
+          <tr><th>Longitude&nbsp;:</th><td><span class="coordinates_0"></span>°</td></tr>
+          <tr><th>Altitude&nbsp;:</th><td><span class="altitude"></span>m</td></tr>
+          <tr><th>Vitesse&nbsp;:</th><td>
+              vx=<span class="speed_x"></span>m/s,
+              vy=<span class="speed_y"></span>m/s,
+              vz=<span class="speed_z"></span>m/s
+          </td></tr>
+          <tr><th>Déplacement&nbsp;:</th><td>
+              dx=<span class="drift_x"></span>m,
+              dy=<span class="drift_y"></span>m,
+              dz=<span class="drift_z"></span>m
+          <tr><th>Date&nbsp;:</th><td class="time"></td></tr>
+          <tr><th>Pression&nbsp;:</th><td><span class="pressure"></span>hPa</td></tr>
+      </table>
+  </td></tr></table>
+  <div id="map"/>
+  <script type="text/javascript" src="index_bundle.js"></script>
+</body>
+</html>
