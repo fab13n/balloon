@@ -117,13 +117,3 @@ USE_TZ = False  # Everything in DB and UI is supposed to be in UTC
 STATIC_URL = '/static/'
 
 # WebSocket channels routing table
-
-ASGI_APPLICATION = "balloon.routing.application"
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
-}
