@@ -1,0 +1,7 @@
+data/*
+*.pyc
+frontend/node_modules
+.idea
+data
+db.sqlite3
+*.log
