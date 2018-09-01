@@ -17,7 +17,10 @@ from pathlib import Path
 
 BASE_PATH = Path(__file__).parent.parent.absolute()
 BASE_DIR = str(BASE_PATH)
-GRIB_PATH = BASE_PATH / 'data'
+
+IS_IN_DOCKER = Path("/.dockerenv").is_file()
+
+GRIB_PATH = Path("/home/balloon/data") if IS_IN_DOCKER else BASE_PATH / 'data'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
@@ -28,7 +31,8 @@ SECRET_KEY = '-+_2uy7x@k%-1%p+4$v@zr-qmaqtiq4a1a41h*8(oj0j+dx_a1'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# No need to protect access to data, the site only serves public data
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -115,5 +119,5 @@ USE_TZ = False  # Everything in DB and UI is supposed to be in UTC
 # https://docs.djangoproject.com/en/2.0/howto/static-files/
 
 STATIC_URL = '/static/'
-
+STATIC_ROOT = BASE_PATH.parent / "html" / "static"
 # WebSocket channels routing table

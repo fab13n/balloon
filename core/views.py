@@ -1,4 +1,3 @@
-from asgiref.sync import async_to_sync
 from dateutil.parser import parse
 
 from django.http import HttpResponseBadRequest, JsonResponse
