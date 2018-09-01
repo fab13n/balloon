@@ -20,3 +20,6 @@ docker run -d \
 	--volume $DIR/install:/home/$NAME/install \
 	--volume /home/fabien/balloon-data:/home/$NAME/data \
     $NAME
+
+docker logs -f $NAME
+

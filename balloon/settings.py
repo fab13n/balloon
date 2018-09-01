@@ -11,14 +11,18 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
 import os
-
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 from pathlib import Path
+
+IS_IN_DOCKER = Path("/.dockerenv").is_file()
 
 BASE_PATH = Path(__file__).parent.parent.absolute()
 BASE_DIR = str(BASE_PATH)
 
-IS_IN_DOCKER = Path("/.dockerenv").is_file()
+if IS_IN_DOCKER:
+    # Cannot convince uwsgi/django to talk in UTF-8 otherwise
+    import sys
+    import codecs
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 
 GRIB_PATH = Path("/home/balloon/data") if IS_IN_DOCKER else BASE_PATH / 'data'
 
