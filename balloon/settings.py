@@ -120,4 +120,10 @@ USE_TZ = False  # Everything in DB and UI is supposed to be in UTC
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_PATH.parent / "html" / "static"
-# WebSocket channels routing table
+
+PREPROCESS_BOX = {
+    "lat1": 42.,
+    "lat2": 52.,
+    "lon1": 0.,
+    "lon2": 9.
+}

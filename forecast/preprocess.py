@@ -27,6 +27,7 @@ from forecast.models import GribModel
 SHORT_NAMES = tuple("tuvzr")
 DATA_TYPES = [(name, "f2") for name in SHORT_NAMES]
 
+
 def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
     # TODO ARPEGE INDEXED 0...360 rather than -180...180, boxes across 0 not supported
     with pygrib.open(grib_file_path.__fspath__()) as f:
@@ -69,8 +70,6 @@ def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
                         datum = data[lat_idx][lon_idx]
                         if m.shortName == 'z':
                             datum = int(datum/9.81)  # Convert geopotential in m²/s² into meters above MSL
-                        if lons[lon_idx] == 1.5 and lats[lat_idx] == 43.5 and m.shortName == 'z':
-                            print(f"z at {m.level}mb at 43.5N;1.5E = {round(datum/1000, 3)}km")
                         array[lon_idx][lat_idx][alt_idx][m.shortName] = datum
             with np_file_path.open('wb') as f:
                 np.save(f, array)
