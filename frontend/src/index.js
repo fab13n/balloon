@@ -82,6 +82,7 @@ function display_trajectory(geoJSON) {
     map.getView().fit(trajectory_source.getExtent(), map.getSize());
 }
 
+
 async function update_available_dates() {
     let model_name = d3.select('[name=model]').property('value');
     let url = `/forecast/list/${model_name}`;

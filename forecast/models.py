@@ -5,6 +5,7 @@ from pathlib import Path
 
 from balloon.settings import GRIB_PATH
 
+
 class FileRef(object):
     """
     Reference to a forecast file.
@@ -28,7 +29,6 @@ class FileRef(object):
 
     def valid_dates(self):
         return sorted(self.analysis_date + offset for offset in self.forecast_offsets)
-
 
     def status(self):
         """
@@ -140,13 +140,12 @@ class GribModel(object):
         # valid_date => list of filerefs containing that valid date, sorted by decreasing analysis date
         forecasts = self.list_forecasts(validity_date_from, validity_date_to)
 
-
         # Create a fileref => path index, to avoid multiple downloads.
         downloaded = set()  # downloaded fileref set
 
         # Order the forecasts to download nearest validity dates first
         for validity_date, fileref_list in sorted(forecasts.items(), key=lambda item: item[0]):
-            print(f"Looking for {validity_date.isoformat()}:")
+            print(f"? Looking for {validity_date.isoformat()}:")
             for fileref in fileref_list:
                 if fileref.analysis_date > datetime.utcnow():
                     continue  # File produced in the future
@@ -214,15 +213,15 @@ class ArpegeGlobal(GribModel):
             'analysis_date': fileref.analysis_date.strftime("%Y-%m-%dT%H:%M:%SZ")}
         output = Path(str(fileref.__fspath__())+".part")
         try:
-            print(f"\tTrying to download {output}\n\tfrom {url}")
+            print(f"\t? Trying to download {output}\n\tfrom {url}")
             with urlopen(url) as input:
                 if input.status > 299:
-                    print(f"\tError {input.status}: {input.msg}")
+                    print(f"\t- Error {input.status}: {input.msg}")
                     return None
                 output.parent.mkdir(parents=True, exist_ok=True)
                 with output.open('wb') as output_buffer:
                     for i in range(sys.maxsize):
-                        sys.stdout.write(f"\r\t{i}MB")
+                        sys.stdout.write(f"\r\t+ {i}MB")
                         sys.stdout.flush()
                         chunk = input.read(MEGABYTE)
                         if not chunk:
@@ -234,7 +233,7 @@ class ArpegeGlobal(GribModel):
             print(f" Saved to {fileref.__fspath__()}")
             return output
         except HTTPError as e:
-            print(f"\tHTTP error {e.code}: {e.msg}")
+            print(f"\t- HTTP error {e.code}: {e.msg}")
             return None
 
 
