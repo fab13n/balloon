@@ -46,13 +46,31 @@ def speed_down_ms(balloon, layer):
     return math.sqrt((2*f) / (layer.rho_kg_m3 * area * CX_PARACHUTE))
 
 
-def trajectory(balloon, layers):
+def apply_drift(position, drift):
+    """
+    Compute the position resulting from applying the drift `(east, north)`, in meters, to a position
+    `(lon, lat)` in degrees.
+
+    :param position:
+    :param drift:
+    :return: resulting (lon, lat) position in degrees.
+    """
+    (lon, lat) = position
+    (east, north) = drift
+
+    return \
+        lon + math.degrees(math.atan(east/(EARTH_RADIUS * math.cos(lat)))), \
+        lat + math.degrees((math.atan(north/EARTH_RADIUS)))
+
+
+def trajectory(balloon, layers, p0, t0):
     """
     Compute the cumulated drift of a balloon in a sequence of layers, sorted
     by ascending altitude.
 
     :param balloon:
     :param layers:
+    :param p0: initial position `(lon, lat)`
     :return: a list of `(eastward drift, northward drift, altitude, time)` tuples,
         in meters and seconds, for each layer.
     """
@@ -66,6 +84,9 @@ def trajectory(balloon, layers):
     i = len(layers) - 1
     layer_heights.append((h(i) - h(i-1)) / 2) # TODO Make it infinite
 
+    # Plutot tout calculer d'un coup. Je pars d'un point, pour l'instant altitude et vitesse 0.
+    # A chaque layer j'ai une vitesse Z un épaisseur, dont je deduis un temp
+
     # Compute the drifts north-ward and east-ward, in each layer, of the ascending balloon.
     #
     # traj[i]['t']: Time spent in layer #i
@@ -73,6 +94,9 @@ def trajectory(balloon, layers):
     # traj[i]['v']: East drift in meters for layer #i
     # traj[i]['z']: Altitude in meters of layer #i
     traj = []
+    time = t0
+    pos  = p0
+    r = round
     for (i, height_m, layer) in zip(range(len(layers)), layer_heights, layers):
         v_m3 = volume_m3(balloon, layer)
         print(f"({i}) at {int(layer.z_m)}m, volume = {v_m3}m³")
@@ -83,13 +107,19 @@ def trajectory(balloon, layers):
             break
         speed_ms = speed_up_ms(balloon, layer)
         t = height_m / speed_ms
-        traj.append({'t': t,
-                     'u': t * layer.u_ms,
-                     'v': t * layer.v_ms,
-                     'z': layer.z_m,
-                     'p': layer.p_hPa,
-                     'h': height_m,
-                     's': speed_ms})
+        drift = [layer.u_ms * t, layer.v_ms * t]
+        pos = apply_drift(pos, drift)
+        time += timedelta(seconds=t)
+        point = {
+            'speed': {'x': r(layer.u_ms, 1), 'y': r(layer.v_ms, 1), 'z': r(speed_ms, 1)},
+            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': r(height_m), 't': r(t)},
+            'position': {'x': r(pos[0], 4), 'y': r(pos[1], 4), 'z': r(layer.z_m)},
+            'pressure': layer.p_hPa,
+            'rho': r(layer.rho_kg_m3, 3),
+            'temp': r(layer.t_K+273.15),
+            'time': time.isoformat().split(".", 1)[0]+"Z",
+        }
+        traj.append(point)
 
     if len(traj) == len(layers):
         raise ValueError("The balloon doesn't burst in the layers provided")
@@ -98,34 +128,26 @@ def trajectory(balloon, layers):
     for (i, height_m, layer) in reversed(list(zip(range(top_layer), layer_heights, layers))):
         speed_ms = speed_down_ms(balloon, layer)
         t = height_m / speed_ms
-        traj.append({'t': t,
-                     'u': t * layer.u_ms,
-                     'v': t * layer.v_ms,
-                     'z': layer.z_m,
-                     'p': layer.p_hPa,
-                     'h': height_m,
-                     's': -speed_ms})
+        drift = [layer.u_ms * t, layer.v_ms * t]
+        pos = apply_drift(pos, drift)
+        time += timedelta(seconds=t)
+        point = {
+            'speed': {'x': r(layer.u_ms, 1), 'y': r(layer.v_ms, 1), 'z': -r(speed_ms, 1)},
+            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': -r(height_m), 't': r(t)},
+            'position': {'x': r(pos[0], 4), 'y': r(pos[1], 4), 'z': r(layer.z_m)},
+            'pressure': layer.p_hPa,
+            'rho': r(layer.rho_kg_m3, 3),
+            'temp': r(layer.t_K+273.15),
+            'time': time.isoformat().split(".", 1)[0]+"Z",
+        }
+        traj.append(point)
 
     return traj
 
 
-def apply_drift(position, drift):
-    """
-    Compute the position resulting from applying the drift `(east, north)`, in meters, to a position
-    `(lon, lat)` in degrees.
-
-    :param position:
-    :param drift:
-    :return: resulting (lon, lat) position in degrees.
-    """
-    (lon, lat) = position
-    (east, north) = drift
-    return \
-        lon + math.atan(east/(EARTH_RADIUS * math.cos(lat))), \
-        lat + math.atan(north/EARTH_RADIUS)
 
 
-def drifts_to_geojson(position, date, drift):
+def to_geojson(trajectory):
     """
     convert an initial position `(lon, lat)` and a sequence of drifts `(east, north)`
     into a geojson feature.
@@ -134,27 +156,13 @@ def drifts_to_geojson(position, date, drift):
     :param drift:
     :return: dictionary ready to seraialize into geojson.
     """
-    (lon, lat) = position
-    #ftr = {"type": "Feature",
-    #       "geometry": {"type": "Point", "coordinates": [lon, lat]},
-    #       "properties": {"time": date.isoformat(), "altitude": 0}}
     # TODO start from ground not MSL
-    # TODO I'm most likely off-by-one in my position/properties association
     features = []
-    for p in drift:
-        dt = p['t']
-        dx = p['u'] * dt
-        dy = p['v'] * dt
-        (lon, lat) = apply_drift((lon, lat), (dx, dy))
-        date += timedelta(seconds=dt)
+    for p in trajectory:
         ftr = {"type": "Feature",
-               "geometry": {"type": "Point", "coordinates": [round(lon, 4), round(lat, 4)]},
-               "properties": {
-                   "speed": {"x": round(p['u'], 1), "y": round(p['v'], 1), "z": round(p["s"], 1)},
-                   "drift": {"x": int(dx), "y": int(dy), "z": int(p["h"]), "t": int(dt)},
-                   "pressure": p['p'],
-                   "time": date.isoformat().split(".", 1)[0]+"Z",
-                   "altitude": int(p["z"])}}
+               "geometry": {"type": "Point",
+                            "coordinates": [round(p['position']['x'], 4), round(p['position']['y'], 4)]},
+               "properties": p}
         features.append(ftr)
 
     return {"type": "FeatureCollection", "properties": {}, "features": features}

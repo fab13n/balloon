@@ -18,6 +18,9 @@ The other with suffix '.json' contains its indexing description:
 """
 import json
 import pygrib
+from datetime import datetime
+from dateutil.parser import parse
+
 import numpy as np
 
 from balloon.settings import GRIB_PATH
@@ -108,3 +111,21 @@ def extract(model, date, position):
         layer = Layer(**kwargs)
         layers.append(layer)
     return layers
+
+def list_files(model, date_from=None):
+    if isinstance(model, GribModel):
+        model_name = f"{model.name}_{model.grid_pitch}"
+    else:
+        model_name = model
+    results = {}
+    for shape_file in (GRIB_PATH / model_name).glob("*.json"):
+        valid_date = datetime.strptime(shape_file.stem, '%Y%m%d%H%M')
+        if date_from is not None and valid_date < date_from:
+            continue
+        try:
+            with shape_file.open() as f:
+                analysis_date = parse(json.load(f)['analysis_date'])
+        except Exception:
+            continue
+        results[valid_date] = analysis_date
+    return results

@@ -15,6 +15,7 @@ import Stroke from 'ol/style/stroke';
 import Fill from 'ol/style/fill';
 import CircleStyle from 'ol/style/circle';
 import Point from 'ol/geom/point'
+import ScaleLine from 'ol/control/scaleline';
 import proj from 'ol/proj';
 
 window.d3 = d3;
@@ -54,7 +55,7 @@ let map = new Map({
     layers: [
         new TileLayer({source: new XYZ({url: 'https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png'})}),
         new VectorLayer({source: trajectory_source, style: trajectory_style})]});
-
+map.addControl(new ScaleLine({units: 'metric'}));
 window.map = map;
 
 /**
@@ -62,8 +63,6 @@ window.map = map;
  */
 function display_trajectory(geoJSON) {
     trajectory_source.clear();
-    // Enrich properties with point coordinates in degrees (in the geometry they will be reprojected).
-    geoJSON.features.forEach(ftr => { ftr.properties.coordinates = ftr.geometry.coordinates; });
     let point_features = new GeoJSON({
         defaultDataProjection: 'EPSG:4326',
         featureProjection: map.getView().getProjection()
@@ -137,18 +136,18 @@ function display_feature_details(ftr) {
         d3.select(".position_details").style("display", "none");
     } else {
         d3.select(".position_details").style("display", null);
-        console.log("---------------");
+        //console.log("---------------");
         let properties = ftr.getProperties();
         Object.getOwnPropertyNames(properties).forEach((name) => {
             let value = properties[name];
             if (value instanceof Object) {
                 Object.getOwnPropertyNames(value).forEach((sub_name) => {
                     let sub_value = value[sub_name];
-                    console.log(`${name}_${sub_name} = ${sub_value}`);
+                    //console.log(`${name}_${sub_name} = ${sub_value}`);
                     d3.select(`.position_details .${name}_${sub_name}`).text(sub_value);
                 });
             } else {
-                console.log(`${name} = ${value}`);
+                //console.log(`${name} = ${value}`);
                 d3.select(`.position_details .${name}`).text(value);
             }
         });

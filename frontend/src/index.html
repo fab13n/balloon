@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Trajectoire ballon</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="ol.css"/>
     <style type="text/css">
         h1, p {
             font-family: 'sans-serif';
@@ -108,18 +109,19 @@
   </td><td class="position_details">
       Sous le curseur:
       <table>
-          <tr><th>Latitude&nbsp;:</th><td><span class="coordinates_1"></span>°</td></tr>
-          <tr><th>Longitude&nbsp;:</th><td><span class="coordinates_0"></span>°</td></tr>
-          <tr><th>Altitude&nbsp;:</th><td><span class="altitude"></span>m</td></tr>
+          <tr><th>Latitude&nbsp;:</th><td><span class="position_y"></span>°</td></tr>
+          <tr><th>Longitude&nbsp;:</th><td><span class="position_x"></span>°</td></tr>
+          <tr><th>Altitude&nbsp;:</th><td><span class="position_z"></span>m</td></tr>
           <tr><th>Vitesse&nbsp;:</th><td>
               vx=<span class="speed_x"></span>m/s,
               vy=<span class="speed_y"></span>m/s,
               vz=<span class="speed_z"></span>m/s
           </td></tr>
           <tr><th>Déplacement&nbsp;:</th><td>
-              dx=<span class="drift_x"></span>m,
-              dy=<span class="drift_y"></span>m,
-              dz=<span class="drift_z"></span>m
+              dx=<span class="move_x"></span>m,
+              dy=<span class="move_y"></span>m,
+              dz=<span class="move_z"></span>m,
+              dt=<span class="move_t"></span>s
           <tr><th>Date&nbsp;:</th><td class="time"></td></tr>
           <tr><th>Pression&nbsp;:</th><td><span class="pressure"></span>hPa</td></tr>
       </table>

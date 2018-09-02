@@ -5,7 +5,7 @@ from django.http import HttpResponseBadRequest, JsonResponse
 from forecast.models import grib_models
 from forecast.preprocess import extract
 from core import models as m
-from .trajectory import trajectory as core_trajectory, drifts_to_geojson
+from . import trajectory as core_trajectory
 
 
 def _parse_date(date_string):
@@ -51,6 +51,6 @@ def trajectory(request):
 
     balloon = m.Balloon(ground_volume_m3=ground_volume_m3, balloon_mass_kg=balloon_mass_kg, payload_mass_kg=payload_mass_kg)
     layers = extract(model, date, (longitude, latitude))
-    drift = core_trajectory(balloon, layers)
-    geojson = drifts_to_geojson((longitude, latitude), date, drift)
+    t = core_trajectory.trajectory(balloon, layers, (longitude, latitude), date)
+    geojson = core_trajectory.to_geojson(t)
     return JsonResponse(geojson, safe=False)

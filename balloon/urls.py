@@ -22,8 +22,6 @@ from core import views as core_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('forecast/update/<str:grib_model>/<str:valid_date_from>/', forecast_views.update_file, name='update_1'),
-    path('forecast/update/<str:grib_model>/<str:valid_date_from>/<str:valid_date_to>/', forecast_views.update_file, name='update_range'),
     path('forecast/list/<str:grib_model>/', forecast_views.list_files, name='list'),
     path('trajectory/', core_views.trajectory, name='trajectory'),
     path('column/', core_views.column, name='column')
