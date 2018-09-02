@@ -118,6 +118,7 @@ def trajectory(balloon, layers, p0, t0):
             'rho': r(layer.rho_kg_m3, 3),
             'temp': r(layer.t_K+273.15),
             'time': time.isoformat().split(".", 1)[0]+"Z",
+            'volume': r(v_m3)
         }
         traj.append(point)
 

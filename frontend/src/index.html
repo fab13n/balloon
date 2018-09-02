@@ -20,11 +20,54 @@
             background-color: lightgray;
         }
         table {
-            border: 1px solid lightgray;
+            border-collapse: collapse;
+            border: 1px solid gray;
+        }
+        #form_and_position_details {
+            border: none;
+        }
+        #form_table th {
+            text-align: right;
+        }
+        #form_table th[colspan] {
+            text-align: center;
+            background-color: white;
+        }
+        #map_and_legend {
+            display: inline-flex;
+            width: 100%;
         }
         #map {
-            width: 100%;
+            width: calc(100% - 40px);
             height: 500px;
+        }
+        #legend {
+            background-color: green;
+            width: 35px;
+            margin-left: 5px;
+            height: 500px;
+        }
+        #legend .item {
+            text-align: right;
+            padding-right: 3px;
+            font-family: sans-serif;
+            font-size: 8pt;
+            color: black;
+        }
+        #trajectory_table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        #trajectory_table th {
+            border: 1px solid gray;
+        }
+        #trajectory_table td {
+            font-family: monospace;
+            text-align: right;
+            border-left: 1px solid gray;
+            border-right: 1px solid gray;
+            padding-left: 5px;
+            padding-right: 5px;
         }
         table select { width: 100%; background-color: white; }
         table input[type=button] { width: 100%; }
@@ -41,10 +84,10 @@
       développé par Michel Maignan pour Planète Sciences.
   </p>
 
-  <table><tr><td>
+  <table id="form_and_position_details"><tr><td>
       <form>
           <input type="hidden" name="id"/>
-          <table id="form-table">
+          <table id="form_table">
               <tr>
                   <th>Modèle météo :</th>
                   <td colspan="2">
@@ -69,10 +112,8 @@
               </tr>
               <tr>
                   <th>Date du lâcher :</th>
-                  <td>
+                  <td colspan="2">
                       <select name="date"></select>
-                  </td><td>
-                      <input type="button" name="download_forecast" value="Charger plus de prévisions..."/>
                   </td>
               </tr>
               <tr><th colspan="3">Caractéristiques du Ballon :</th></tr>
@@ -126,7 +167,26 @@
           <tr><th>Pression&nbsp;:</th><td><span class="pressure"></span>hPa</td></tr>
       </table>
   </td></tr></table>
-  <div id="map"/>
+  <div id="map_and_legend">
+      <div id="map"></div>
+      <div id="legend"></div>
+  </div>
+  <table id="trajectory_table">
+      <tr>
+          <th rowspan="2">Date</th>
+          <th rowspan="2">P</th>
+          <th rowspan="2">V</th>
+          <th rowspan="2">ρ</th>
+          <th colspan="3">Position</th>
+          <th colspan="3">Vitesse</th>
+          <th colspan="4">Déplacement</th>
+      </tr>
+      <tr>
+          <th>X</th><th>Y</th><th>Z</th>
+          <th>Ẋ</th><th>Ẏ</th><th>Ż</th>
+          <th>dX</th><th>dY</th><th>dZ</th><th>dT</th>
+      </tr>
+  </table>
   <script type="text/javascript" src="index_bundle.js"></script>
 </body>
 </html>

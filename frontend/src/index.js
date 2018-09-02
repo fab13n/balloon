@@ -17,6 +17,8 @@ import CircleStyle from 'ol/style/circle';
 import Point from 'ol/geom/point'
 import ScaleLine from 'ol/control/scaleline';
 import proj from 'ol/proj';
+import RainbowGenerator from 'color-rainbow';
+import numeral from 'numeral';
 
 window.d3 = d3;
 
@@ -41,13 +43,32 @@ function get_url_params() {
 
 const url_params = get_url_params();
 
+/* Altitude legend and scale */
+const NB_OF_COLORS = 32;
+const MAX_ALTITUDE = 40000; // meters
+const rainbow = d3.scaleLinear()
+    .domain(d3.range(NB_OF_COLORS).map(x => x * MAX_ALTITUDE / (NB_OF_COLORS-1)))
+    .range(RainbowGenerator.create(NB_OF_COLORS).map(c => c.hexString()));
+d3.select("#legend")
+    .selectAll("div.item").data(rainbow.domain().reverse()).enter()
+    .append('div')
+    .attr('class', 'item')
+    .style('background-color', n=>rainbow(n))
+    .style('height', `${d3.select("#legend").node().getBoundingClientRect().height/NB_OF_COLORS}px`)
+    .text(n=>numeral(n).format('0a')+'m');
+
+
 /* Where GeoJSON trajectories will be displayed. */
-let trajectory_style = new Style({
-    stroke: new Stroke({color: 'green', width: 3}),
-    image: new CircleStyle({
-        radius: 6,
-        stroke: new Stroke({color: "green", width: 2}),
-        fill: new Fill({color: "white"})})});
+let trajectory_style = (ftr) => {
+    let p = ftr.getProperties();
+    let circle_color = p.position ? rainbow(p.position.z) : 'green';
+    return new Style({
+        stroke: new Stroke({color: 'green', width: 3}),
+        image: new CircleStyle({
+            radius: 6,
+            stroke: new Stroke({color: circle_color, width: 2}),
+            fill: new Fill({color: "white"})})});
+};
 let trajectory_source = new VectorSource();
 let map = new Map({
     target: 'map',
@@ -81,6 +102,30 @@ function display_trajectory(geoJSON) {
     map.getView().fit(trajectory_source.getExtent(), map.getSize());
 }
 
+function update_trajectory_table(geoJSON) {
+    d3.select("#trajectory_table")
+        .style('display', null) // show again
+        .selectAll("tr.item").data(geoJSON.features.map(p => p.properties)).enter()
+        .append("tr")
+        .attr("class", "item")
+        .html(p => `
+            <td>${p.time.split('T')[1]}</td>
+            <td>${p.pressure}hPa</td>
+            <td>${p.volume ? p.volume+'m³' : '&mdash;'}</td>
+            <td>${p.rho >= 1 ? p.rho+"kg" : Math.round(1000*p.rho)+"g"}/m³</td>
+            <td>${Math.abs(p.position.x)}°${p.position.x>0 ? 'E' : 'W'}</td>
+            <td>${Math.abs(p.position.y)}°${p.position.y>0 ? 'N' : 'S'}</td>
+            <td>${p.position.z}m</td>
+            <td>${p.speed.x}m/s</td>
+            <td>${p.speed.y}m/s</td>
+            <td>${p.speed.z}m/s</td>
+            <td>${p.move.x}m</td>
+            <td>${p.move.y}m</td>
+            <td>${p.move.z}m</td>
+            <td>${p.move.t}s</td>
+        `);
+}
+
 
 async function update_available_dates() {
     let model_name = d3.select('[name=model]').property('value');
@@ -112,6 +157,7 @@ async function update_trajectory() {
     let geojson = await response.json();
     console.log(geojson);
     display_trajectory(geojson);
+    update_trajectory_table(geojson);
 }
 
 function update_suggestions() {
@@ -165,6 +211,8 @@ d3.select('[name=update_trajectory]')
     .on('click', update_trajectory);
 d3.selectAll('.impacts_suggestions')
     .on('click change keypress', update_suggestions);
+d3.select('#trajectory_table')
+    .style('display', 'none');
 map.on('pointermove', (evt) => {
     let feature = null;
     map.forEachFeatureAtPixel(evt.pixel, ftr => { if(ftr.getGeometry() instanceof Point) { feature = ftr; }});
