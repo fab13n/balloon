@@ -1,6 +1,8 @@
 import math
 from datetime import timedelta
+
 from .models import CX_PARACHUTE, CX_BALLOON, R_PARACHUTE_M, G, EARTH_RADIUS
+
 
 def volume_m3(balloon, layer):
     """
@@ -63,90 +65,73 @@ def apply_drift(position, drift):
         lat + math.degrees((math.atan(north/EARTH_RADIUS)))
 
 
-def trajectory(balloon, layers, p0, t0):
+def trajectory(balloon, column, p0, t0):
     """
     Compute the cumulated drift of a balloon in a sequence of layers, sorted
     by ascending altitude.
 
     :param balloon:
-    :param layers:
+    :param column:
     :param p0: initial position `(lon, lat)`
+    :param t0: date of launch
     :return: a list of `(eastward drift, northward drift, altitude, time)` tuples,
         in meters and seconds, for each layer.
     """
-    # Compute the height, in meter, of each layer
-    layers.sort(key=lambda layer: layer.z_m)  # Sort by ascending altitudes
-    h = lambda i:  layers[i].z_m
-    layer_heights = []
-    layer_heights.append((h(1) - h(0)) / 2)
-    for i, layer in list(enumerate(layers))[1:-1]:
-        layer_heights.append((h(i+1) - h(i-1)) / 2)
-    i = len(layers) - 1
-    layer_heights.append((h(i) - h(i-1)) / 2) # TODO Make it infinite
 
-    # Plutot tout calculer d'un coup. Je pars d'un point, pour l'instant altitude et vitesse 0.
-    # A chaque layer j'ai une vitesse Z un épaisseur, dont je deduis un temp
+    # In this first version, we simply go up then down the layers in the column.
+    # In a second step, we'll want to be able to jump from a column to another:
+    # keep going smoothly up or down the pressure indexing, but change the column itself
+    # (the number of layers in a column may vary because of ground altitude).
 
     # Compute the drifts north-ward and east-ward, in each layer, of the ascending balloon.
-    #
-    # traj[i]['t']: Time spent in layer #i
-    # traj[i]['u']: North drift in meters for layer #i
-    # traj[i]['v']: East drift in meters for layer #i
-    # traj[i]['z']: Altitude in meters of layer #i
     traj = []
     time = t0
-    pos  = p0
-    r = round
-    for (i, height_m, layer) in zip(range(len(layers)), layer_heights, layers):
-        v_m3 = volume_m3(balloon, layer)
-        print(f"({i}) at {int(layer.z_m)}m, volume = {v_m3}m³")
-        if v_m3 > balloon.burst_volume_m3:
-            # Burst altitude reached: stop the loop going up,
-            # start going down
-            top_layer = i
-            break
-        speed_ms = speed_up_ms(balloon, layer)
-        t = height_m / speed_ms
+    position = p0
+    def make_traj_point(layer, position, time, speed_ms, volume=None):
+        """
+        Generate a new trajectory point, update latest position and time
+        """
+        r = round
+        t = layer.height_m / abs(speed_ms)
         drift = [layer.u_ms * t, layer.v_ms * t]
-        pos = apply_drift(pos, drift)
+        position = apply_drift(position, drift)
         time += timedelta(seconds=t)
         point = {
             'speed': {'x': r(layer.u_ms, 1), 'y': r(layer.v_ms, 1), 'z': r(speed_ms, 1)},
-            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': r(height_m), 't': r(t)},
-            'position': {'x': r(pos[0], 4), 'y': r(pos[1], 4), 'z': r(layer.z_m)},
+            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': r(layer.height_m), 't': r(t)},
+            'position': {'x': r(position[0], 4), 'y': r(position[1], 4), 'z': r(layer.z_m)},
             'pressure': layer.p_hPa,
             'rho': r(layer.rho_kg_m3, 3),
-            'temp': r(layer.t_K+273.15),
-            'time': time.isoformat().split(".", 1)[0]+"Z",
-            'volume': r(v_m3)
+            'temp': r(layer.t_K + 273.15),
+            'time': time.isoformat().split(".", 1)[0]+"Z"
         }
-        traj.append(point)
+        if volume is not None:
+            point['volume'] = r(volume)
+        return (point, position, time)
 
-    if len(traj) == len(layers):
+    for (i, layer) in enumerate(column.layers):
+        v_m3 = volume_m3(balloon, layer)
+        print(f"({i:02d}) at {layer.z_m}m, {layer.p_hPa}hPa, volume = {v_m3}m³")
+        if v_m3 > balloon.burst_volume_m3:
+            # Burst altitude reached: stop the loop going up, start going down
+            print(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
+            top_layer = i
+            break
+        (point, position, time) = make_traj_point(layer, position, time, speed_up_ms(balloon, layer), volume=v_m3)
+        traj.append(point)
+    else:
+        # The loop didn't break, we reached the top layer without bursting
         raise ValueError("The balloon doesn't burst in the layers provided")
 
+    # TODO: drift on a prorata of the layer within which the balloon burst?
+
     # Drifts on the way down, at parachute speed
-    for (i, height_m, layer) in reversed(list(zip(range(top_layer), layer_heights, layers))):
-        speed_ms = speed_down_ms(balloon, layer)
-        t = height_m / speed_ms
-        drift = [layer.u_ms * t, layer.v_ms * t]
-        pos = apply_drift(pos, drift)
-        time += timedelta(seconds=t)
-        point = {
-            'speed': {'x': r(layer.u_ms, 1), 'y': r(layer.v_ms, 1), 'z': -r(speed_ms, 1)},
-            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': -r(height_m), 't': r(t)},
-            'position': {'x': r(pos[0], 4), 'y': r(pos[1], 4), 'z': r(layer.z_m)},
-            'pressure': layer.p_hPa,
-            'rho': r(layer.rho_kg_m3, 3),
-            'temp': r(layer.t_K+273.15),
-            'time': time.isoformat().split(".", 1)[0]+"Z",
-        }
+    for layer in reversed(column.layers[:i]):
+        print(f"(--) back to {layer.z_m}m, {layer.p_hPa}hPa")
+        (point, position, time) = make_traj_point(layer, position, time, -speed_down_ms(balloon, layer))
         traj.append(point)
 
     return traj
-
-
-
 
 def to_geojson(trajectory):
     """

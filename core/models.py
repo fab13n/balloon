@@ -76,6 +76,7 @@ class Layer(object):
         else:
             # TODO: we can probably get a better estimate from pressure without relative humidity
             self.rho_kg_m3 = self.chapman_density()
+        self.height_m = None  # Can only be filled once in a `Column`
 
     def chapman_density(self):
         """
@@ -139,3 +140,129 @@ class Layer(object):
         Convert into a dictionary ready to be JSON-serialized.
         """
         return dict(u=self.u_ms, v=self.v_ms, t=self.t_K, z=self.z_m, p=self.p_hPa, rho=self.rho_kg_m3)
+
+class Column(object):
+    """
+    Stack of Layers at a given (lon, lat) grid position.
+    In addition to storing layers in a pressure-indexed dictionary `self.layer`,
+    this class offers a couple of interpolation / extrapolation features for missing points,
+    most notably the exact launch altitude and the stratospheric levels.
+
+    Public fields include:
+    * `grib_model`
+    * `position`: `(longitude, latitude)`
+    * `valid_date`, `analysis_date` always in UTC
+    * `ground_altitude` in meters
+    * `layers` a sorted list by  increasing altitude
+    * `layers_by_pressure` a pressure → Layer dictionary
+    * `pressures` a sorted list of pressures
+    """
+    def __init__(self, grib_model, position, valid_date, analysis_date,
+                 ground_altitude, layers, extrapolated_pressures=()):
+        """
+        :param grib_model:
+        :param position:
+        :param valid_date:
+        :param analysis_date:
+        :param ground_altitude:
+        :param layers:
+        :param extrapolated_pressures:
+        """
+        self.grib_model = grib_model
+        self.position = position
+        self.valid_date = valid_date
+        self.analysis_date = analysis_date
+        self.ground_altitude = ground_altitude
+
+        # Sort layers and remove layers below ground surface
+        sorted_layers = sorted(layers, key=lambda l: l.p_hPa, reverse=True)
+        i = next(i for (i, l) in enumerate(sorted_layers) if l.z_m > ground_altitude)
+        sorted_layers = sorted_layers[i:]
+
+        # Interpolated ground pressure (needed to compute balloon dilatation according to pressure)
+        (la, lb) = sorted_layers[:2]
+        self.ground_pressure = self._interpolate_altitude_pressure(Pa=la.p_hPa, Pb=lb.p_hPa, Za=la.z_m, Zb=lb.z_m,
+                                                                  Zc=ground_altitude)
+
+        # Extrapolated stratospheric layers (sometimes the balloon bursts above the top model layer)
+        (ly, lz) = sorted_layers[-2:]
+        sorted_extrapolated_pressures = sorted((p for p in extrapolated_pressures if p < lz.p_hPa), reverse=True)
+        extrapolated_layers = [self._extrapolate_stratospheric_layer(ly, lz, p) for p in sorted_extrapolated_pressures]
+
+        # Add heights to layers
+        all_layers = sorted_layers + extrapolated_layers
+        for (l0, l1, l2) in zip (all_layers[0:], all_layers[1:], all_layers[2:]):
+            # Boundaries for l1 are at (Z2+Z1)/2 and (Z1+Z0)/2, height is therefore (Z2-Z0)/2
+            l1.height_m = (l2.z_m - l0.z_m) / 2
+
+        # First layer goes from ground_altitude to La/Lb boundary
+        la.height_m = (la.z_m + lb.z_m)/2 - ground_altitude
+
+        # For  last layer, we consider that z_m is in the middle of the layer.
+        # The height is therefor twice the distance from last boundary (Zy+Zz)/2 to Zz.
+        lz.height_m = lz.z_m - ly.z_m
+
+        self.layers = all_layers
+        self.layers_by_pressure = {l.p_hPa: l for l in all_layers}
+        self.pressures = [l.p_hPa for l in all_layers]
+
+    def _interpolate_altitude_pressure(self, Pa, Za, Pb, Zb, Pc=None, Zc=None):
+        """
+        interpolate pressure from altitude or conversely.
+
+        Pressure is supposed to follow a power law `Pi = P · exp(-K · Zi)`,
+        with constants `P` and `K` to be determined.
+        With two points `(Pa, Za)` and `(Pb, Zb)` we can determine `P` and `K`,
+        then use them to interpolate nearby `Pc` from `Zc` or conversely.
+
+        Exactly one of parameters `Pc` and `Zc` must be None, and will be interpolated
+        and returned as a result.
+
+        :param Pa: pressure at first point
+        :param Za: altitude of first point
+        :param Pb: pressure at second point
+        :param Zb: altitude of second point
+        :param Zc: altitude at which the pressure must be interpolated if not None
+        :param Pc: pressure at which the altitude must be interpolated if not None
+        :return: either interpolated Zc or interpolated Pc, depending on which parameter was None.
+        """
+        K = math.log(Pb / Pa) / (Za - Zb)
+        P = Pa * math.exp(K * Za)
+
+        if Zc is None and Pc is None:
+            raise ValueError("Only one of Pc/Zc must be None")
+        elif Zc is None:
+            return math.log(P / Pc) / K
+        elif Pc is None:
+            return P * math.exp(-K * Zc)
+        else:
+            raise ValueError("One of Pc/Zc must be None")
+
+    def _extrapolate_stratospheric_layer(self, layer0, layer1, p):
+        """
+        Create an extrapolated layer in the stratosphere, in case the balloon goes beyond
+        the forecast model's ceiling.
+        :param layer0: second highest layer from the model
+        :param layer1: highest layer from the model
+        :param p: pressure layer to extrapolate
+        :return: a Layer object
+        """
+        return Layer(
+            u=layer1.u_ms,
+            v=layer1.v_ms,
+            t=layer1.t_K,  # Temperatures have a limited gradient in the stratosphere
+            p=p,
+            z=self._interpolate_altitude_pressure(Pa=layer1.p_hPa, Pb=layer0.p_hPa, Za=layer1.z_m,
+                                                 Zb=layer0.z_m, Pc=p),
+            rho=layer1.rho_kg_m3 * p / layer1.p_hPa)
+
+    def to_json(self):
+        return {
+            'model': self.grib_model.name,
+            'grid_pitch': self.grib_model.grid_pitch,
+            'position': {'x': self.position[0], 'y': self.position[1]},
+            'analysis_date': self.analysis_date.isoformat(),
+            'valid_date': self.valid_date.isoformat(),
+            'ground': {'pressure': self.ground_pressure, 'z': self.ground_altitude},
+            'layers': [layer.to_json() for layer in self.layers]
+        }

@@ -168,6 +168,13 @@ class GribModel(object):
                     result[validity_date] = fileref
         return result
 
+    def round_position(self, position):
+        """
+        :param position: `(lon, lat)`
+        :return: `(lon, lat)` rounded to the model's grid pitch
+        """
+        return [round(x/self.grid_pitch) * self.grid_pitch for x in position]
+
 
 def _make_analysis_offsets(text):
     """
@@ -201,6 +208,7 @@ class ArpegeGlobal(GribModel):
         "time=%(first_offset)sH%(last_offset)sH&" + \
         "referencetime=%(analysis_date)s&" + \
         "format=grib2"
+    grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.5_CONSTANT.grib"
 
     def download_file(self, fileref):
         MEGABYTE = 1024 * 1024

@@ -3,7 +3,7 @@ from dateutil.parser import parse
 from django.http import HttpResponseBadRequest, JsonResponse
 
 from forecast.models import grib_models
-from forecast.preprocess import extract
+from forecast import preprocess
 from core import models as m
 from . import trajectory as core_trajectory
 
@@ -27,9 +27,9 @@ def column(request):
         msg = e.args[0]
         return HttpResponseBadRequest(f"Invalid parameter: {msg}")
 
-    layers = sorted(extract(model, date, (longitude, latitude)), key=lambda l: l.p_hPa, reverse=True)
+    column = preprocess.extract(model, date, (longitude, latitude))
 
-    return JsonResponse([layer.to_json() for layer in layers], safe=False)
+    return JsonResponse(column.to_json())
 
 
 def trajectory(request):
@@ -49,8 +49,21 @@ def trajectory(request):
         msg = e.args[0]
         return HttpResponseBadRequest(f"Invalid parameter: {msg}")
 
-    balloon = m.Balloon(ground_volume_m3=ground_volume_m3, balloon_mass_kg=balloon_mass_kg, payload_mass_kg=payload_mass_kg)
-    layers = extract(model, date, (longitude, latitude))
-    t = core_trajectory.trajectory(balloon, layers, (longitude, latitude), date)
-    geojson = core_trajectory.to_geojson(t)
+    position = model.round_position((longitude, latitude))
+
+    balloon = m.Balloon(
+        ground_volume_m3=ground_volume_m3,
+        balloon_mass_kg=balloon_mass_kg,
+        payload_mass_kg=payload_mass_kg)
+    column = preprocess.extract(
+        model=model,
+        date=date,
+        position=(longitude, latitude),
+        extrapolated_pressures=range(1, 20))
+    traj = core_trajectory.trajectory(
+        balloon=balloon,
+        column=column,
+        p0=position,
+        t0=date)
+    geojson = core_trajectory.to_geojson(traj)
     return JsonResponse(geojson, safe=False)

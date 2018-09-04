@@ -4,6 +4,7 @@ from dateutil.parser import parse as parse_date
 
 from django.http import JsonResponse, HttpResponseBadRequest
 
+from forecast.preprocess import extract_ground_altitude
 from . import models as m
 from . import preprocess
 
@@ -27,3 +28,18 @@ def list_files(request, grib_model):
     str_dates = {k.isoformat(): v.isoformat() for k, v in dates.items()}
 
     return JsonResponse(str_dates)
+
+
+def altitude(request, grib_model):
+    try:
+        grib_model = m.grib_models[grib_model]
+    except KeyError:
+        HttpResponseBadRequest("Unknown GRIB  model name")
+    try:
+        longitude = float(request.GET['longitude'])
+        latitude = float(request.GET['latitude'])
+        return JsonResponse(extract_ground_altitude(grib_model, (longitude, latitude)))
+    except KeyError as e:
+        return HttpResponseBadRequest(f"Missing parameter {e.args[0]}")
+    except ValueError as e:
+        return HttpResponseBadRequest(e.args[0])

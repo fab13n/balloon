@@ -23,6 +23,7 @@ from core import views as core_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('forecast/list/<str:grib_model>/', forecast_views.list_files, name='list'),
+    path('ground_altitude/<str:grib_model>/', forecast_views.altitude, name='ground_altitude'),
     path('trajectory/', core_views.trajectory, name='trajectory'),
     path('column/', core_views.column, name='column')
 ]
