@@ -82,7 +82,7 @@ class GribModel(object):
     def list_forecasts(self, validity_date_from, validity_date_to=None):
         """
         List every combo containing valid dates in the date range given as parameters
-        Those files aren't necessarily downloaded yet, and don't event necessarily exist either (their analysis
+        Those files aren't necessarily downloaded yet, and don't even necessarily exist (their analysis
         date might be in the future or in a very recent past).
 
         :param validity_date_from: first valid date looked for;
@@ -166,6 +166,7 @@ class GribModel(object):
             for validity_date in fileref.valid_dates():
                 if validity_date_from <= validity_date <= validity_date_to:
                     result[validity_date] = fileref
+                    # TODO Preprocess immediately
         return result
 
     def round_position(self, position):
@@ -174,6 +175,14 @@ class GribModel(object):
         :return: `(lon, lat)` rounded to the model's grid pitch
         """
         return [round(x/self.grid_pitch) * self.grid_pitch for x in position]
+
+    def round_time(self, date):
+        """
+        Return the date closest to `date` for which a forecast exists
+        TODO only return downloaded and preprocessed dates
+        :param date:
+        :return:
+        """
 
 
 def _make_analysis_offsets(text):
@@ -194,11 +203,9 @@ def _make_validity_offsets(text, interval):
     return tuple(sp_to_tdt(*str_pair) for str_pair in str_pairs)
 
 
-class ArpegeGlobal(GribModel):
+class ArpegeCommon(GribModel):
     name = 'ARPEGE'
-    grid_pitch = 0.5
     analysis_offsets = _make_analysis_offsets("0 6 12 18")
-    validity_offsets = _make_validity_offsets("0-24 27-48 51-72 75-102 105-114", 3)
     url_pattern = \
         "http://dcpc-nwp.meteo.fr/services/PS_GetCache_DCPCPreviNum?" + \
         "token=__5yLVTdr-sGeHoPitnFc7TZ6MhBcJxuSsoZp6y0leVHU__&" + \
@@ -208,7 +215,6 @@ class ArpegeGlobal(GribModel):
         "time=%(first_offset)sH%(last_offset)sH&" + \
         "referencetime=%(analysis_date)s&" + \
         "format=grib2"
-    grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.5_CONSTANT.grib"
 
     def download_file(self, fileref):
         MEGABYTE = 1024 * 1024
@@ -245,6 +251,19 @@ class ArpegeGlobal(GribModel):
             return None
 
 
+class ArpegeGlobal(ArpegeCommon):
+    grid_pitch = 0.5
+    validity_offsets = _make_validity_offsets("0-24 27-48 51-72 75-102 105-114", 3)
+    grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.5_CONSTANT.grib"
+
+
+class ArpegeEurope(ArpegeCommon):
+    grid_pitch = 0.1
+    validity_offsets = _make_validity_offsets("0-12 13-24 25-36 37-48 49-60 61-72 73-84 85-96 97-102 103-114", 1)
+    grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.1_CONSTANT.grib"
+
+
 grib_models = {
-    'ARPEGE_0.5': ArpegeGlobal()
+    'ARPEGE_0.5': ArpegeGlobal(),
+    'ARPEGE_0.1': ArpegeEurope()
 }

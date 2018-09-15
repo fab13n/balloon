@@ -58,7 +58,6 @@ d3.select("#legend")
     .text(n=>numeral(n).format('0a')+'m');
 
 
-/* Where GeoJSON trajectories will be displayed. */
 let trajectory_style = (ftr) => {
     let p = ftr.getProperties();
     let circle_color = p.position ? rainbow(p.position.z) : 'green';
@@ -69,6 +68,8 @@ let trajectory_style = (ftr) => {
             stroke: new Stroke({color: circle_color, width: 2}),
             fill: new Fill({color: "white"})})});
 };
+
+/* Where GeoJSON trajectories will be displayed. */
 let trajectory_source = new VectorSource();
 let map = new Map({
     target: 'map',
@@ -100,6 +101,64 @@ function display_trajectory(geoJSON) {
     trajectory_source.addFeatures(linestring_feature);
     trajectory_source.addFeatures(point_features);
     map.getView().fit(trajectory_source.getExtent(), map.getSize());
+}
+
+function draw_point(p) {
+    const CIRCLE_RADIUS = 10;
+    const ALTITUDE_SCALE = MAX_ALTITUDE / 100;
+
+    //const ARROW_HEAD_LENGTH = 10;
+    //const ARROW_HEAD_ANGLE = Math.PI/6;
+    //const SPEED_SCALE = 5;
+
+    let px2c = (coords) =>
+        map.getView().getCoordinateFromPixel(coords);
+    let balloon_circle_style = (ftr) => {
+        let p = ftr.getProperties();
+        return new Style({
+            image: new CircleStyle({
+                radius: CIRCLE_RADIUS,
+                stroke: new Stroke({color: rainbow(p.position.z), width: 2}),
+                fill: new Fill({color: "white"})})});
+    };
+    let balloon_height_style = (ftr) => {
+        let p = ftr.getProperties();
+        return new Style({
+            stroke: new Stroke({color: rainbow(p.position.z), width: 3}),
+            text: new Text({
+                text: p.label,
+                placement: 'point',
+                offsetY: 5,
+                textAlign: 'center',
+                textBaseline: 'top',
+                fill: rainbow(p.position.z)})});
+    };
+    let ground_c = proj.transform([p.position.x, p.position.y], 'EPSG:4326', map.getView().getProjection());
+    let ground_px = map.getPixelFromCoordinate(ground_c);
+    let circle_center_px = [ground_px[0], ground_px[1] - p.position.z * ALTITUDE_SCALE];
+    let circle_bottom_px = [circle_center_px[0], circle_center_px[1] - CIRCLE_RADIUS];
+
+    //let arrow_top_px =   [ground_px[0] + p.speed.x * SPEED_SCALE,
+    //                      ground_px[1] + p.speed.y * SPEED_SCALE];
+    //let angle = Math.atan(p.speed.x, p.speed.y); // Angle of the speed vector relative to North
+    //let arrow_left_px =  [arrow_top_px[0] + ARROW_HEAD_LENGTH * Math.sin(angle-ARROW_HEAD_ANGLE/2),
+    //                      arrow_top_px[1] - ARROW_HEAD_LENGTH * Math.cos(angle-ARROW_HEAD_ANGLE/2)];
+    //let arrow_right_px = [arrow_top_px[0] + ARROW_HEAD_LENGTH * Math.sin(angle+ARROW_HEAD_ANGLE/2),
+    //                      arrow_top_px[1] - ARROW_HEAD_LENGTH * Math.cos(angle+ARROW_HEAD_ANGLE/2)];
+    // let speed_lines = [[ground_c, arrow_top_px], [arrow_left_px, arrow_top_px, arrow_right_px]]
+    //    .map(clist => clist.map(c => map.getCoordinateFromPixel(c)));
+
+    let circle_ftr = new Feature({geometry: new Point(px2c(circle_center_px))});
+    circle_ftr.setStyle(balloon_circle_style);
+
+    let height_line_ftr = new Feature({geometry: new LineString([ground_c, px2c(circle_bottom_px)])});
+    let hours = date.substr(11, 2);
+    let minutes = date.substr(14, 2);
+    let seconds = date.substr(17, 2);
+    let label = hours === '00' ? `${Number(minutes)}´${seconds}´´` : `${Number(hours)}:${minutes}´`;
+    height_line_ftr.set('label', label);
+    height_line_ftr.setStyle(balloon_height_style);
+    return [circle_ftr, height_line_ftr];
 }
 
 function update_trajectory_table(geoJSON) {

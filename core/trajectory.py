@@ -106,7 +106,7 @@ def trajectory(balloon, column, p0, t0):
             'time': time.isoformat().split(".", 1)[0]+"Z"
         }
         if volume is not None:
-            point['volume'] = r(volume)
+            point['volume'] = r(volume, 1)
         return (point, position, time)
 
     for (i, layer) in enumerate(column.layers):

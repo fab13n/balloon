@@ -18,6 +18,7 @@ The other with suffix '.json' contains its indexing description:
 """
 import json
 import pygrib
+import sys
 from datetime import datetime
 from dateutil.parser import parse
 
@@ -55,17 +56,18 @@ def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
                 with shape_file_path.open() as f:
                     previous_analysis = json.load(f).get('analysis_date', "")
                 if previous_analysis >= analysis_date:
-                    print(f"\tpreprocessed data for {date.isoformat()} is more recent ({previous_analysis} vs. {analysis_date})")
+                    print(f"\t- preprocessed data for {date.isoformat()} is more recent ({previous_analysis} vs. {analysis_date})")
                     continue
                 else:
-                    print(f"\tupdating preprocessed data for {date.isoformat()} ({previous_analysis} => {analysis_date})")
+                    print(f"\t+ Update files for {date.isoformat()} ({previous_analysis} => {analysis_date})")
             else:
-                print(f"\tfor {date.isoformat()}:")
+                print(f"\t+ Create files for {date.isoformat()}:")
             array = np.recarray(shape=shape, dtype=DATA_TYPES)
             for m in messages:
                 if m.validDate != date:
                     continue
-                print(f"\t\tindexing {m.shortName}@{m.level}hPa")
+                sys.stdout.write(f"\r\t\tindexing {m.shortName}@{m.level}hPa")
+                sys.stdout.flush()
                 alt_idx = alt_idx_dict[m.level]
                 (data, _, _) = m.data(**box)
                 for lon_idx in range(len(lons)):
@@ -78,7 +80,7 @@ def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
                 np.save(f, array)
             with shape_file_path.open('w') as f:
                 json.dump({'lats': lats, 'lons': lons, 'alts': altitudes, 'analysis_date': analysis_date}, f)
-
+            print("")
 
 def extract_ground_altitude(model, position):
     if isinstance(model, GribModel):
