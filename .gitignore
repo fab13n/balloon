@@ -7,3 +7,5 @@ db.sqlite3
 *.log
 frontend/dist
 *~
+
+frontend/lib/

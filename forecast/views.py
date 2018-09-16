@@ -4,9 +4,10 @@ from dateutil.parser import parse as parse_date
 
 from django.http import JsonResponse, HttpResponseBadRequest
 
-from forecast.preprocess import extract_ground_altitude
+from forecast.extract import extract_ground_altitude
 from . import models as m
-from . import preprocess
+from . import extract
+
 
 def list_files(request, grib_model):
     """
@@ -24,7 +25,7 @@ def list_files(request, grib_model):
     else:
         from_date = datetime.utcnow()
 
-    dates = preprocess.list_files(grib_model, from_date)
+    dates = extract.list_files(grib_model, from_date)
     str_dates = {k.isoformat(): v.isoformat() for k, v in dates.items()}
 
     return JsonResponse(str_dates)

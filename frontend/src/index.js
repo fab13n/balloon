@@ -272,6 +272,8 @@ d3.selectAll('.impacts_suggestions')
     .on('click change keypress', update_suggestions);
 d3.select('#trajectory_table')
     .style('display', 'none');
+d3.select('[name=model]')
+    .on('click change keypress', update_available_dates);
 map.on('pointermove', (evt) => {
     let feature = null;
     map.forEachFeatureAtPixel(evt.pixel, ftr => { if(ftr.getGeometry() instanceof Point) { feature = ftr; }});

@@ -3,7 +3,7 @@ from dateutil.parser import parse
 from django.http import HttpResponseBadRequest, JsonResponse
 
 from forecast.models import grib_models
-from forecast import preprocess
+from forecast import extract
 from core import models as m
 from . import trajectory as core_trajectory
 
@@ -55,7 +55,7 @@ def trajectory(request):
         ground_volume_m3=ground_volume_m3,
         balloon_mass_kg=balloon_mass_kg,
         payload_mass_kg=payload_mass_kg)
-    column = preprocess.extract(
+    column = extract.extract(
         model=model,
         date=date,
         position=(longitude, latitude),
