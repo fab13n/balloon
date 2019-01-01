@@ -49,7 +49,7 @@ class Balloon(object):
         self.lift_N = (self.ground_volume_m3 * HE_LIFT_KG_M3 - mass) * G
 
 
-class Layer(object):
+class Cell(object):
     """
     Description of atmosphere at a given lat/lon/alt/time point, extracted from a GRIB model.
     """
@@ -126,7 +126,7 @@ class Layer(object):
 
     def __str__(self):
         """
-        Generate a readable representation of this layer.
+        Generate a readable representation of this cell.
         """
         return f"{self.z_m/1000:.3}km_H, " + \
                f"{abs(self.u_ms):.1g}m/s_{'E' if self.u_ms>0 else 'W'}, " + \
@@ -143,8 +143,8 @@ class Layer(object):
 
 class Column(object):
     """
-    Stack of Layers at a given (lon, lat) grid position.
-    In addition to storing layers in a pressure-indexed dictionary `self.layer`,
+    Stack of cells at a given (lon, lat) grid position.
+    In addition to storing cells in a pressure-indexed dictionary `self.cell`,
     this class offers a couple of interpolation / extrapolation features for missing points,
     most notably the exact launch altitude and the stratospheric levels.
 
@@ -153,19 +153,17 @@ class Column(object):
     * `position`: `(longitude, latitude)`
     * `valid_date`, `analysis_date` always in UTC
     * `ground_altitude` in meters
-    * `layers` a sorted list by  increasing altitude
-    * `layers_by_pressure` a pressure → Layer dictionary
-    * `pressures` a sorted list of pressures
+    * `cells` a sorted list by  increasing altitude
     """
     def __init__(self, grib_model, position, valid_date, analysis_date,
-                 ground_altitude, layers, extrapolated_pressures=()):
+                 ground_altitude, cells, extrapolated_pressures=()):
         """
         :param grib_model:
         :param position:
         :param valid_date:
         :param analysis_date:
         :param ground_altitude:
-        :param layers:
+        :param cells:
         :param extrapolated_pressures:
         """
         self.grib_model = grib_model
@@ -174,35 +172,36 @@ class Column(object):
         self.analysis_date = analysis_date
         self.ground_altitude = ground_altitude
 
-        # Sort layers and remove layers below ground surface
-        sorted_layers = sorted(layers, key=lambda l: l.p_hPa, reverse=True)
-        i = next(i for (i, l) in enumerate(sorted_layers) if l.z_m > ground_altitude)
-        sorted_layers = sorted_layers[i:]
+        # Sort cells and remove cells below ground surface
+        sorted_cells = sorted(cells, key=lambda l: l.p_hPa, reverse=True)
+        i = next(i for (i, l) in enumerate(sorted_cells) if l.z_m > ground_altitude)
+        sorted_cells = sorted_cells[i:]
 
         # Interpolated ground pressure (needed to compute balloon dilatation according to pressure)
-        (la, lb) = sorted_layers[:2]
+        (la, lb) = sorted_cells[:2]
         self.ground_pressure = self._interpolate_altitude_pressure(Pa=la.p_hPa, Pb=lb.p_hPa, Za=la.z_m, Zb=lb.z_m,
                                                                    Zc=ground_altitude)
 
-        # Extrapolated stratospheric layers (sometimes the balloon bursts above the top model layer)
-        (ly, lz) = sorted_layers[-2:]
+        # Extrapolated stratospheric cells (sometimes the balloon bursts above the top model cell)
+        (ly, lz) = sorted_cells[-2:]
         sorted_extrapolated_pressures = sorted((p for p in extrapolated_pressures if p < lz.p_hPa), reverse=True)
-        extrapolated_layers = [self._extrapolate_stratospheric_layer(ly, lz, p) for p in sorted_extrapolated_pressures]
+        extrapolated_cells = [self._extrapolate_stratospheric_cell(ly, lz, p) for p in sorted_extrapolated_pressures]
 
-        # Add heights to layers
-        all_layers = sorted_layers + extrapolated_layers
-        for (l0, l1, l2) in zip (all_layers[0:], all_layers[1:], all_layers[2:]):
+        # Add heights to cells
+        all_overground_cells = sorted_cells + extrapolated_cells
+        for (l0, l1, l2) in zip (all_overground_cells[0:], all_overground_cells[1:], all_overground_cells[2:]):
             # Boundaries for l1 are at (Z2+Z1)/2 and (Z1+Z0)/2, height is therefore (Z2-Z0)/2
             l1.height_m = (l2.z_m - l0.z_m) / 2
 
-        # First layer goes from ground_altitude to La/Lb boundary
+        # First cell goes from ground_altitude to La/Lb boundary
         la.height_m = (la.z_m + lb.z_m)/2 - ground_altitude
 
-        # For  last layer, we consider that z_m is in the middle of the layer.
+        # For  last cell, we consider that z_m is in the middle of the cell.
         # The height is therefor twice the distance from last boundary (Zy+Zz)/2 to Zz.
         lz.height_m = lz.z_m - ly.z_m
 
-        self.layers = i * [None] + all_layers
+        underground_cells = i * [None]
+        self.cells = underground_cells + all_overground_cells
 
     def does_contain_point(self, position):
         """
@@ -245,23 +244,23 @@ class Column(object):
         else:
             raise ValueError("One of Pc/Zc must be None")
 
-    def _extrapolate_stratospheric_layer(self, layer0, layer1, p):
+    def _extrapolate_stratospheric_cell(self, cell0, cell1, p):
         """
-        Create an extrapolated layer in the stratosphere, in case the balloon goes beyond
+        Create an extrapolated cell in the stratosphere, in case the balloon goes beyond
         the forecast model's ceiling.
-        :param layer0: second highest layer from the model
-        :param layer1: highest layer from the model
-        :param p: pressure layer to extrapolate
-        :return: a Layer object
+        :param cell0: second highest cell from the model
+        :param cell1: highest cell from the model
+        :param p: pressure cell to extrapolate
+        :return: a cell object
         """
-        return Layer(
-            u=layer1.u_ms,
-            v=layer1.v_ms,
-            t=layer1.t_K,  # Temperatures have a limited gradient in the stratosphere
+        return Cell(
+            u=cell1.u_ms,
+            v=cell1.v_ms,
+            t=cell1.t_K,  # Temperatures have a limited gradient in the stratosphere
             p=p,
-            z=self._interpolate_altitude_pressure(Pa=layer1.p_hPa, Pb=layer0.p_hPa, Za=layer1.z_m,
-                                                 Zb=layer0.z_m, Pc=p),
-            rho=layer1.rho_kg_m3 * p / layer1.p_hPa)
+            z=self._interpolate_altitude_pressure(Pa=cell1.p_hPa, Pb=cell0.p_hPa, Za=cell1.z_m,
+                                                  Zb=cell0.z_m, Pc=p),
+            rho=cell1.rho_kg_m3 * p / cell1.p_hPa)
 
     def to_json(self):
         return {
@@ -271,5 +270,5 @@ class Column(object):
             'analysis_date': self.analysis_date.isoformat(),
             'valid_date': self.valid_date.isoformat(),
             'ground': {'pressure': self.ground_pressure, 'z': self.ground_altitude},
-            'layers': [layer.to_json() for layer in self.layers]
+            'cells': [cell.to_json() for cell in self.cells]
         }

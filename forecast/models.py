@@ -159,7 +159,7 @@ class GribModel(object):
                     # Perform download
                     fspath = fileref.download()
                 if fspath: # Either found already downloaded/pending, or just downloaded
-                    print(f"Found in {fileref}")
+                    print(f"\t. Found in {fileref}")
                     break  # No need to look for older forecast of the same validity_date
 
         # Recreate the valid date => path result from the combo => path one.
@@ -189,9 +189,7 @@ class GribModel(object):
         one_hour = timedelta(hours=1)
         if self.time_pitch % one_hour != timedelta(0):
             raise NotImplementedError("Time pitches not multiple of an hour not implemented")
-        else:
-            pitch = int(self.time_pitch.total_seconds()) // 3600
-            hp = pitch // 2
+        pitch = int(self.time_pitch.total_seconds()) // 3600
         if date.minute >= 30:
             date = date + one_hour
         h = int((date.hour + pitch // 2) // pitch) * pitch

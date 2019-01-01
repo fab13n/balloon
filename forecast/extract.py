@@ -4,7 +4,7 @@ from datetime import datetime
 from dateutil.parser import parse
 
 from balloon.settings import GRIB_PATH
-from core.models import Column, Layer
+from core.models import Column, Cell
 from forecast.models import GribModel, grib_models
 from forecast.preprocess import SHORT_NAMES
 
@@ -87,14 +87,14 @@ class ColumnExtractor(object):
         except StopIteration:
             raise ValueError("No preprocessed weather data for this position")
 
-        np_layers = self.array[lon_idx][lat_idx][:]
-        layers = []
-        for p, layer in zip(self.shape['alts'], np_layers):
+        np_column = self.array[lon_idx][lat_idx][:]
+        column = []
+        for p, cell in zip(self.shape['alts'], np_column):
             kwargs = {'p': p}
-            for name, val in zip(SHORT_NAMES, layer):
+            for name, val in zip(SHORT_NAMES, cell):
                 kwargs[name] = float(val)
-            layer = Layer(**kwargs)
-            layers.append(layer)
+            cell = Cell(**kwargs)
+            column.append(cell)
 
         column = Column(
             grib_model=self.model,
@@ -102,7 +102,7 @@ class ColumnExtractor(object):
             valid_date=date,
             analysis_date=parse(self.shape['analysis_date']),
             ground_altitude=self.extract_ground_altitude(position),
-            layers=layers,
+            cells=column,
             extrapolated_pressures=self.extrapolated_pressures)
 
         return column
