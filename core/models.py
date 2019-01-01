@@ -51,7 +51,7 @@ class Balloon(object):
 
 class Layer(object):
     """
-    Description of atmosphere at a given point, extracted from a GRIB model.
+    Description of atmosphere at a given lat/lon/alt/time point, extracted from a GRIB model.
     """
     def __init__(self, u, v, t, p=None, z=None, r=None, rho=None):
         """
@@ -169,7 +169,7 @@ class Column(object):
         :param extrapolated_pressures:
         """
         self.grib_model = grib_model
-        self.position = position
+        self.position = grib_model.round_position(position)
         self.valid_date = valid_date
         self.analysis_date = analysis_date
         self.ground_altitude = ground_altitude
@@ -182,7 +182,7 @@ class Column(object):
         # Interpolated ground pressure (needed to compute balloon dilatation according to pressure)
         (la, lb) = sorted_layers[:2]
         self.ground_pressure = self._interpolate_altitude_pressure(Pa=la.p_hPa, Pb=lb.p_hPa, Za=la.z_m, Zb=lb.z_m,
-                                                                  Zc=ground_altitude)
+                                                                   Zc=ground_altitude)
 
         # Extrapolated stratospheric layers (sometimes the balloon bursts above the top model layer)
         (ly, lz) = sorted_layers[-2:]
@@ -202,9 +202,16 @@ class Column(object):
         # The height is therefor twice the distance from last boundary (Zy+Zz)/2 to Zz.
         lz.height_m = lz.z_m - ly.z_m
 
-        self.layers = all_layers
-        self.layers_by_pressure = {l.p_hPa: l for l in all_layers}
-        self.pressures = [l.p_hPa for l in all_layers]
+        self.layers = i * [None] + all_layers
+
+    def does_contain_point(self, position):
+        """
+        indicate whether the point at `position=(longitude, latitude)` is in this column
+        :param position:
+        :return: True/False
+        """
+        hp = self.grib_model.grid_pitch / 2.  # half-pitch
+        return all(self.position[i]-hp <= position[i] <= self.position[i] + hp for i in range(2))
 
     def _interpolate_altitude_pressure(self, Pa, Za, Pb, Zb, Pc=None, Zc=None):
         """

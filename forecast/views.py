@@ -4,7 +4,7 @@ from dateutil.parser import parse as parse_date
 
 from django.http import JsonResponse, HttpResponseBadRequest
 
-from forecast.extract import extract_ground_altitude
+from forecast.extract import ColumnExtractor
 from . import models as m
 from . import extract
 
@@ -25,7 +25,7 @@ def list_files(request, grib_model):
     else:
         from_date = datetime.utcnow()
 
-    dates = extract.list_files(grib_model, from_date)
+    dates = ColumnExtractor(grib_model).list_files(from_date)
     str_dates = {k.isoformat(): v.isoformat() for k, v in dates.items()}
 
     return JsonResponse(str_dates)
@@ -39,7 +39,7 @@ def altitude(request, grib_model):
     try:
         longitude = float(request.GET['longitude'])
         latitude = float(request.GET['latitude'])
-        return JsonResponse(extract_ground_altitude(grib_model, (longitude, latitude)))
+        return JsonResponse(ColumnExtractor(grib_model).extract_ground_altitude((longitude, latitude)))
     except KeyError as e:
         return HttpResponseBadRequest(f"Missing parameter {e.args[0]}")
     except ValueError as e:

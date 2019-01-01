@@ -75,6 +75,7 @@ class GribModel(object):
     (analysis_date, frozenset of validity offsets). Such a key is called a "combo".
     """
     name = 'ABSTRACT'
+    time_pitch = timedelta(hours=1)  # Interval between two validity dates
     grid_pitch = 0.5       # Interval between grid points in degrees
     analysis_offsets = ()  # Tuple of offsets from midnight UTC
     validity_offsets = ()  # Tuple of frozensets of offsets from analysis dates
@@ -155,9 +156,11 @@ class GribModel(object):
                     fspath = fileref.__fspath__()
                     downloaded.add(fileref)
                 else:
+                    # Perform download
                     fspath = fileref.download()
-                if fspath:
-                    break  # No need to look for older forecast for this validity_date
+                if fspath: # Either found already downloaded/pending, or just downloaded
+                    print(f"Found in {fileref}")
+                    break  # No need to look for older forecast of the same validity_date
 
         # Recreate the valid date => path result from the combo => path one.
         # Items are handled by increasing analysis date, so that the latest forecast will erase older ones.
@@ -179,10 +182,20 @@ class GribModel(object):
     def round_time(self, date):
         """
         Return the date closest to `date` for which a forecast exists
-        TODO only return downloaded and preprocessed dates
+        TODO only return downloaded and preprocessed dates? Maybe we'd rather fail upon missing files
         :param date:
         :return:
         """
+        one_hour = timedelta(hours=1)
+        if self.time_pitch % one_hour != timedelta(0):
+            raise NotImplementedError("Time pitches not multiple of an hour not implemented")
+        else:
+            pitch = int(self.time_pitch.total_seconds()) // 3600
+            hp = pitch // 2
+        if date.minute >= 30:
+            date = date + one_hour
+        h = int((date.hour + pitch // 2) // pitch) * pitch
+        return date.replace(hour=h, minute=0, second=0, microsecond=0)
 
 
 def _make_analysis_offsets(text):
@@ -252,12 +265,14 @@ class ArpegeCommon(GribModel):
 
 
 class ArpegeGlobal(ArpegeCommon):
+    time_pitch = timedelta(hours=3)
     grid_pitch = 0.5
     validity_offsets = _make_validity_offsets("0-24 27-48 51-72 75-102 105-114", 3)
     grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.5_CONSTANT.grib"
 
 
 class ArpegeEurope(ArpegeCommon):
+    time_pitch = timedelta(hours=1)
     grid_pitch = 0.1
     validity_offsets = _make_validity_offsets("0-12 13-24 25-36 37-48 49-60 61-72 73-84 85-96 97-102 103-114", 1)
     grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.1_CONSTANT.grib"

@@ -27,7 +27,7 @@ def column(request):
         msg = e.args[0]
         return HttpResponseBadRequest(f"Invalid parameter: {msg}")
 
-    column = preprocess.extract(model, date, (longitude, latitude))
+    column = extract.ColumnExtractor(model).extract(date, (longitude, latitude))
 
     return JsonResponse(column.to_json())
 
@@ -55,14 +55,12 @@ def trajectory(request):
         ground_volume_m3=ground_volume_m3,
         balloon_mass_kg=balloon_mass_kg,
         payload_mass_kg=payload_mass_kg)
-    column = extract.extract(
+    extractor = extract.ColumnExtractor(
         model=model,
-        date=date,
-        position=(longitude, latitude),
         extrapolated_pressures=range(1, 20))
     traj = core_trajectory.trajectory(
         balloon=balloon,
-        column=column,
+        column_extractor=extractor,
         p0=position,
         t0=date)
     geojson = core_trajectory.to_geojson(traj)

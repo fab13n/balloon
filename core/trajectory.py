@@ -65,13 +65,13 @@ def apply_drift(position, drift):
         lat + math.degrees((math.atan(north/EARTH_RADIUS)))
 
 
-def trajectory(balloon, column, p0, t0):
+def trajectory(balloon, column_extractor, p0, t0):
     """
     Compute the cumulated drift of a balloon in a sequence of layers, sorted
     by ascending altitude.
 
     :param balloon:
-    :param column:
+    :param column_extractor:
     :param p0: initial position `(lon, lat)`
     :param t0: date of launch
     :return: a list of `(eastward drift, northward drift, altitude, time)` tuples,
@@ -84,9 +84,7 @@ def trajectory(balloon, column, p0, t0):
     # (the number of layers in a column may vary because of ground altitude).
 
     # Compute the drifts north-ward and east-ward, in each layer, of the ascending balloon.
-    traj = []
-    time = t0
-    position = p0
+
     def make_traj_point(layer, position, time, speed_ms, volume=None):
         """
         Generate a new trajectory point, update latest position and time
@@ -109,29 +107,54 @@ def trajectory(balloon, column, p0, t0):
             point['volume'] = r(volume, 1)
         return (point, position, time)
 
-    for (i, layer) in enumerate(column.layers):
-        v_m3 = volume_m3(balloon, layer)
-        print(f"({i:02d}) at {layer.z_m}m, {layer.p_hPa}hPa, volume = {v_m3}m³")
-        if v_m3 > balloon.burst_volume_m3:
-            # Burst altitude reached: stop the loop going up, start going down
-            print(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
-            top_layer = i
-            break
-        (point, position, time) = make_traj_point(layer, position, time, speed_up_ms(balloon, layer), volume=v_m3)
-        traj.append(point)
-    else:
-        # The loop didn't break, we reached the top layer without bursting
-        raise ValueError("The balloon doesn't burst in the layers provided")
+    traj = []
+    time = t0
+    position = p0
+    burst = False
+    column = column_extractor.extract(time, position)
 
-    # TODO: drift on a prorata of the layer within which the balloon burst?
+    i = 0
+    # Skip underground layers
+    while column.layers[i] is None:
+        i += 1
+
+    while not burst:
+        # Start in current altitude
+        # Il faut faire autrement: que le modele vienne avec une liste de pressions, qu'on accede
+        # intelligement aux layers indexés par pression, en se faisant repondre None si on est sous terre,
+        #
+        for layer in column.layers[i:]:
+            v_m3 = volume_m3(balloon, layer)
+            print(f"({i:02d}) at {layer.z_m}m, {layer.p_hPa}hPa, volume = {v_m3}m³")
+            if v_m3 > balloon.burst_volume_m3:
+                # Burst altitude reached: stop the loop going up, start going down
+                print(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
+                top_layer_index = i
+                burst = True
+                break
+            i += 1  # Keep track of index in case we change column
+            (point, position, time) = make_traj_point(layer, position, time, speed_up_ms(balloon, layer), volume=v_m3)
+            traj.append(point)
+            if not column.does_contain_point(position):
+                break
+        else:  # The loop didn't break, we reached the top layer without bursting
+            raise ValueError("The balloon doesn't burst in the layers provided")
+        if not burst:  # the for loop can exit because of overflow(exception raised), balloon burst, or exit of column
+            column = column_extractor.extract(time, position)
+            print(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
+
+    # TODO: drift within the bursting layer: apply proportionally to the bursting altitude within layer?
 
     # Drifts on the way down, at parachute speed
-    for layer in reversed(column.layers[:i]):
+    for layer in reversed(column.layers[:top_layer_index]):
+        if layer is None:
+            break  # Underground
         print(f"(--) back to {layer.z_m}m, {layer.p_hPa}hPa")
         (point, position, time) = make_traj_point(layer, position, time, -speed_down_ms(balloon, layer))
         traj.append(point)
 
     return traj
+
 
 def to_geojson(trajectory):
     """
