@@ -18,7 +18,8 @@ docker run -d \
 	--volume $DIR/forecast:/home/$NAME/backend/forecast \
 	--volume $DIR/balloon:/home/$NAME/backend/balloon \
 	--volume $DIR/install:/home/$NAME/install \
-	--volume /home/fabien/balloon-data:/home/$NAME/data \
+	--volume $DIR/data:/home/$NAME/data \
+	--volume $DIR/log:/home/$NAME/log \
     $NAME
 
 docker logs -f $NAME

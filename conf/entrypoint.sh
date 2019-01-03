@@ -7,4 +7,4 @@ prompt() {
 prompt "Starting webserver"
 nginx
 prompt "Starting Django"
-uwsgi --ini /home/balloon/uwsgi.ini
+uwsgi --ini /home/balloon/conf/uwsgi.ini

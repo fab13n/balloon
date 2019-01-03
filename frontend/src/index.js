@@ -214,7 +214,6 @@ async function update_trajectory() {
     let url = '/trajectory?' + values.join('&');
     let response = await fetch(url);
     let geojson = await response.json();
-    console.log(geojson);
     display_trajectory(geojson);
     update_trajectory_table(geojson);
 }

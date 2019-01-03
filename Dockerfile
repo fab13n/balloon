@@ -1,4 +1,5 @@
 FROM ubuntu:18.04
+MAINTAINER fabien@fleutot.net
 
 ENV USER balloon
 
@@ -53,19 +54,18 @@ RUN backend/manage.py collectstatic --noinput --link
 
 # Generate / collect Node.js static files
 COPY frontend frontend
-RUN mkdir -p html
+RUN mkdir -p html log
 RUN cd frontend && node_modules/.bin/webpack
-RUN cd html && ln -s ../frontend/dist/* .
+RUN cd html && ln -s ../frontend/dist/* ../frontend/static/* .
 
 # Configure services
-COPY install install
-RUN ln -s install/uwsgi.ini install/${USER}-nginx.conf install/entrypoint.sh .
+COPY conf conf
 
-RUN cat install/append-to-bashrc.sh >> /root/.bashrc
+RUN cat conf/append-to-bashrc.sh >> /root/.bashrc
 
-RUN ln -s /home/${USER}/${USER}-nginx.conf /etc/nginx/sites-available/ && \
-    ln -s ../sites-available/${USER}-nginx.conf /etc/nginx/sites-enabled/${USER}-nginx.conf && \
+RUN ln -s /home/${USER}/conf/nginx.conf /etc/nginx/sites-available/${USER}.conf && \
+    ln -s ../sites-available/${USER}.conf /etc/nginx/sites-enabled/ && \
     rm -rf /etc/nginx/sites-enabled/default /var/www/html && \
     echo "website root in /home/${USER}/html" > /var/www/README.txt
 
-ENTRYPOINT /home/${USER}/entrypoint.sh
+ENTRYPOINT /home/${USER}/conf/entrypoint.sh

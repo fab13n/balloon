@@ -1,0 +1,4 @@
+# minutes hours day1-31 month1-12 day1-7 command
+0 3 * * * /home/balloon/backend/manage.py forecast_download MODEL > /homme/balloon/logs/$(date)-download.txt 2>&1
+0 5 * * * /home/balloon/backend/manage.py forecast_preprocess > /homme/balloon/logs/$(date)-preprocess.txt 2>&1
+# TODO Erase old grib files
