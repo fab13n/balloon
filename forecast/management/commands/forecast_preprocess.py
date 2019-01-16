@@ -29,10 +29,31 @@ class Command(BaseCommand):
                 raise CommandError(f"Invalid input file/directory {p}")
         return files
 
+    def get_processed_files(self, path):
+        try:
+            with (path / "processed.json").open('rb') as f:
+                return set(json.load(f))
+        except Exception:
+            return []
+
+    def set_processed_files(self, path, files):
+        # Convert to list of strings, remove references to missing files
+        filtered_filenames = [f.absolute().__fspath__() for f in files if f.is_file()]
+        try:
+            with (path / "processed.json").open('wb') as f:
+                return json.dump(filtered_filenames, f)
+        except Exception:
+            pass
+
     def handle(self, *args, **options):
-        files = self.list_files(map(Path, options['grib_file']))
-        print("Files to preprocess: \n\t"+"\n\t".join(str(f) for f in files))
-        for f in files:
-            preprocess(grib_file_path=f,
-                       lat1=options['lat1'], lat2=options['lat2'], lon1=options['lon1'], lon2=options['lon2'],
-                       force=options['force'])
+        roots = map(Path, options['grib_file'])
+        for r in roots:
+            processed_files = self.get_processed_files(r)
+            files = [f for f in self.list_files([r]) if f not in processed_files]
+            print("Files to preprocess: \n\t"+"\n\t".join(str(f) for f in files))
+            for f in files:
+                preprocess(grib_file_path=f,
+                           lat1=options['lat1'], lat2=options['lat2'],
+                           lon1=options['lon1'], lon2=options['lon2'],
+                           force=options['force'])
+            self.set_processed_files(r, processed_files | files)

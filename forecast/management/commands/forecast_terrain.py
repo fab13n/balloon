@@ -7,7 +7,7 @@ from requests import HTTPError
 import numpy as np
 from django.core.management.base import BaseCommand, CommandError
 
-from balloon.settings import GRIB_PATH, PREPROCESS_BOX
+from balloon.settings import GRIB_PATH, PREPROCESS_BOX, ACTIVE_MODELS
 from forecast.models import grib_models
 
 
@@ -15,7 +15,7 @@ class Command(BaseCommand):
     help = "Download and preprocess ground altitudes for a model"
 
     def add_arguments(self, parser):
-        parser.add_argument("model_name", type=str, help="GRIB model")
+        parser.add_argument("-m", "--model", type=str, default=None, help="GRIB model")
         parser.add_argument("--lat1", type=float, nargs='?', default=PREPROCESS_BOX['lat1'], help="Lowest latitude kept")
         parser.add_argument("--lat2", type=float, nargs='?', default=PREPROCESS_BOX['lat2'], help="Higest latitude kept")
         parser.add_argument("--lon1", type=float, nargs='?', default=PREPROCESS_BOX['lon1'], help="Lowest longitude kept")
@@ -78,13 +78,18 @@ class Command(BaseCommand):
         print(f"+ Saved in {np_file} and {shape_file}")
 
     def handle(self, *args, **options):
-        try:
-            grib_model = grib_models[options['model_name']]
-        except KeyError:
-            raise CommandError(f"Unknown GRIB model name {options['model_name']}, valid names are " +
-                               ", ".join(grib_models.keys()))
-        grib_file = self.download(grib_model, options['force'])
-        if grib_file is None:
-            raise CommandError("Cannot download GRIB file from provider")
-        self.preprocess(grib_file, lat1=options['lat1'], lat2=options['lat2'], lon1=options['lon1'], lon2=options['lon2'],
-                        force=options['force'])
+        m = options['model']
+        if m is None:
+            processed_models = [grib_models[m] for m in ACTIVE_MODELS]
+        else:
+            try:
+                processed_models = [grib_models[options['model']]]
+            except KeyError:
+                raise CommandError(f"Unknown GRIB model name {options['model_name']}, valid names are " +
+                                   ", ".join(grib_models.keys()))
+        for grib_model in processed_models:
+            grib_file = self.download(grib_model, options['force'])
+            if grib_file is None:
+                raise CommandError("Cannot download GRIB file from provider")
+            self.preprocess(grib_file, lat1=options['lat1'], lat2=options['lat2'], lon1=options['lon1'], lon2=options['lon2'],
+                            force=options['force'])

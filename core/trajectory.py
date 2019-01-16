@@ -1,5 +1,6 @@
 import math
 from datetime import timedelta
+import logging
 
 from .models import CX_PARACHUTE, CX_BALLOON, R_PARACHUTE_M, G, EARTH_RADIUS
 
@@ -125,10 +126,10 @@ def trajectory(balloon, column_extractor, p0, t0):
         #
         for cell in column.cells[i:]:
             v_m3 = volume_m3(balloon, cell)
-            print(f"({i:02d}) at {cell.z_m}m, {cell.p_hPa}hPa, volume = {v_m3}m³")
+            logging.info(f"({i:02d}) at {cell.z_m}m, {cell.p_hPa}hPa, volume = {v_m3}m³")
             if v_m3 > balloon.burst_volume_m3:
                 # Burst altitude reached: stop the loop going up, start going down
-                print(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
+                logging.info(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
                 bursting_cell_index = i
                 burst = True
                 break
@@ -141,7 +142,7 @@ def trajectory(balloon, column_extractor, p0, t0):
             raise ValueError("The balloon doesn't burst in the cells provided")
         if not burst:  # the for loop can exit because of overflow(exception raised), balloon burst, or exit of column
             column = column_extractor.extract(time, position)
-            print(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
+            logging.info(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
 
     # TODO: drift within the bursting cell: apply proportionally to the bursting altitude within cell?
 
@@ -149,7 +150,7 @@ def trajectory(balloon, column_extractor, p0, t0):
     for cell in reversed(column.cells[:bursting_cell_index]):
         if cell is None:
             break  # Underground
-        print(f"(--) back to {cell.z_m}m, {cell.p_hPa}hPa")
+        logging.info(f"(--) back to {cell.z_m}m, {cell.p_hPa}hPa")
         (point, position, time) = make_traj_point(cell, position, time, -speed_down_ms(balloon, cell))
         traj.append(point)
 

@@ -20,9 +20,10 @@ BASE_DIR = str(BASE_PATH)
 
 if IS_IN_DOCKER:
     # Cannot convince uwsgi/django to talk in UTF-8 otherwise
-    import sys
-    import codecs
-    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+    #import sys
+    #import codecs
+    #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
+    pass
 
 GRIB_PATH = Path("/home/balloon/data") if IS_IN_DOCKER else BASE_PATH / 'data'
 
@@ -130,4 +131,25 @@ PREPROCESS_BOX = {
     "lat2": 52.,
     "lon1": 0.,
     "lon2": 9.
+}
+
+ACTIVE_MODELS = ["ARPEGE_0.5"]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'docker-logs': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': '/home/balloon/log/django-debug.log',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['docker-logs'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
 }
