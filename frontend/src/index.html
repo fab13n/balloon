@@ -6,16 +6,14 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="stylesheet" href="ol.css"/>
     <style type="text/css">
-        h1, p {
+        h1, h3, p, li, td, th {
             font-family: 'sans-serif';
         }
         td {
-            font-family: 'sans-serif';
             font-size: 9pt;
             white-space: nowrap;
         }
         th {
-            font-family: 'sans-serif';
             font-weight: bold;
             background-color: lightgray;
         }
@@ -69,6 +67,9 @@
             padding-left: 5px;
             padding-right: 5px;
         }
+        #trajectory_table td:first-child {
+          text-align: left;
+        }
         #trajectory_table tr:hover {
             background-color: lightpink;
         }
@@ -82,7 +83,7 @@
   <h1>Prévision de trajectoire ballon</h1>
 
   <p>
-      Cette application permet de prévoir la trajectoire d'un ballon, d'après ses caractéristiques physique
+      Cette application permet de prévoir la trajectoire d'un ballon, d'après ses caractéristiques physiques
       et les prévisions météo de MeteoFrance ou de la NOAA. Elle est très largement inspirée par le tableur
       développé par Michel Maignan pour Planète Sciences.
   </p>
@@ -176,6 +177,7 @@
   </div>
   <table id="trajectory_table">
       <tr>
+          <th rowspan="2">Cellule</th>
           <th rowspan="2">Date</th>
           <th rowspan="2">P</th>
           <th rowspan="2">V</th>
@@ -190,6 +192,95 @@
           <th>dX</th><th>dY</th><th>dZ</th><th>dT</th>
       </tr>
   </table>
+
+<h2>Méthode de simulation</h2>
+
+  <h3>Atmosphère</h3>
+
+  <p>Les prévisions météo sont fournies en grille, à des points fixes en
+    latitude, longitude et pression (les avions mesurent leur altitude en
+    pressions et non en mètres, si bien que les services météo ne fournissent
+    de données indexées en mètres que jusqu'à 3000m, très insuffisants pour
+    des ballons à hélium). Les prévisions ont une date d'analyse
+    à laquelle elles sont publiées, et une date de validité qui est la
+    date décrite/prédite, en général dans le futur. Pour chaque point de grille,
+    on a entre autres les données suivantes :</p>
+
+  <ul>
+    <li>Géopotentiel : divisé par l'attraction terrestre G=9.81m/s², il donne
+      l'altitude au dessus du niveau moyen de la mer (dite « above MSL » en anglais),
+      y compris lorsqu'on n'est pas au-dessus de la mer (m²/s²);</li>
+    <li>Composantes est→ouest et sud→nord du vent U et V (m/s);</li>
+    <li>Température T (°K) ;</li>
+    <li>Humidité relative R (pourcentage).</li>
+  </ul>
+
+<p>En outre, on dispose pour chaque modèle d'une grille d'altitude du sol
+  par rapport au niveau moyen de la mer MSL (m).</p>
+
+<p>Ces données sont fournies librement sur Internet, sous le format
+GRIB2. Les données étant assez lentes à extraire du GRIB, on ne garde
+que celles qui nous intéressent, et on les préindexe sous forme de
+tableaux [numpy](http://www.numpy.org) persistés en mémoire avec
+quelques méta-données. Cela permet de les ré-extraite quasi
+instantanément lorsqu'une nouvelle trajectoire est demandée.</p>
+
+<p>On extrapole les points de grilles en cellules, des « cubes
+d'atmosphère », dont les limites sont à mi-distance de chaque point de
+grille en X, Y, Z et T (si un vol dure plus longtemps qu'un pas de
+prévision, il peut panacher des prévisions à plusieurs échéances de
+temps. Comme les niveaux sont constants en pression et non en
+altitude, les limites supérieures et inférieures en Z ne sont pas
+forcément les mêmes entre deux colonnes X/Y/T différentes. Le bas de
+la première cellule est coupé à l'altitude du sol (et il faut parfois
+éliminer des cellules sous-terraines), la cellule du haut à n'a pas de
+plafond. Les conditions U, V, T° et R sont supposées constantes au
+sein d'une cellule.</p>
+
+<h3>Ballon</h3>
+
+<p>Le ballon est soumis à plusieurs forces : son poids, la poussée
+d'Archimède et la trainée aérodynamique (du ballon à la montée, du
+parachute à la descente). Pour les approximer, on s'appuie sur un
+modèle développé en grande partie par Michel Maignan pour Planète
+Sciences.</p>
+
+<p>La poussée d'Archimède est constante, égale au poids d'air
+déplacé : le volume d'hélium au sol, multiplié par la masse volumique
+de l'hélium au sol (1.116 kg/m³) et G (9.81 m/s²). Il faut en
+soustraire le poids de l'ensemble ballon+nacelle, M·G, et on obtient
+les forces statiques sur le ballon.</p>
+
+<p>Il subit également une force dynamique, la traînée aérodynamique,
+et sa vitesse s'équilibre lorsque la trainée égale les forces
+statiques.  La trainée vaut F = ½·ρ·S·Cx·V², où ρ est la densité de
+l'air, S la surface frontale su ballon (un cercle de même diamètre que
+la sphère du ballon), Cx un paramètre empirique propre à la forme du
+ballon (ici 0.45), et V la vitesse. On résoud pour la vitesse, soit V
+= √(2F / ρ·S·Cx), où F est égal à la somme des forces
+statiques ci-dessus. Restent à déterminer ρ et S.</p>
+
+<p>La surface S se déduit de V = 4/3·π·R³ et S = π·R², en résolvant la
+première équation pour R : S = π·(3/4·V/π)^(2/3).</p>
+
+<p>La densité de l'air ρ est la somme des pressions partielles d'air
+et de vapeur, divisées par leurs constantes de gaz spécifiques , 287
+J/kg/K et 461 J/kg/K respectivement. La pression partielle d'eau n'est
+pas donnée directement, mais peut être déduite de l'humidité
+relative : l'humidité relative est à 100% quand on est au point de
+rosée pour une combinaison donnée température + pression partielle
+d'eau, et ce point se calcule comme p = 6.1078 · 10^(7.5·t / t+237.3),
+pour une température en °C donnée. La pression partielle d'air est la
+différence entre la pression totale et la PP d'eau. NB: pas sûr que ce
+calcul change significativement la vitesse ; approximer avec de l'air
+sec pour simplifier, si ça n'est pas significatif.</p>
+
+<p>À la redescente, la vitesse du ballon est calculée de façon
+similaire, si ce n'est que sa masse est allégée du poids de
+l'enveloppe éclatée, que le Cx du parachute est supérieur à celui du
+balon (empiriquement 1.4), et sa surface plus petite et constante
+(65cm de rayon).</p>
+
   <script type="text/javascript" src="index_bundle.js"></script>
 </body>
 </html>
