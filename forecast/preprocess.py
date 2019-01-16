@@ -25,18 +25,24 @@ import numpy as np
 
 SHORT_NAMES = tuple("tuvzr")
 DATA_TYPES = [(name, "f2") for name in SHORT_NAMES]
+EPSILON = 1e-5
 
 
 def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
     # TODO ARPEGE INDEXED 0...360 rather than -180...180, boxes across 0 not supported
     with pygrib.open(grib_file_path.__fspath__()) as f:
-        box = dict(lat1=lat1, lat2=lat2, lon1=lon1, lon2=lon2)
-        print(f"preprocessing {grib_file_path} within {box}")
         messages = f.select(shortName=SHORT_NAMES, typeOfLevel='isobaricInhPa')
         dates = set(m.validDate for m in messages)
         altitudes = sorted(set(m.level for m in messages))
         alt_idx_dict = {l: i for (i, l) in enumerate(altitudes)}
-        lats, lons = messages[0].data(**box)[1:]
+        if lon2 < lon1:  # Across the 0 meridian
+            left = messages[0].data(lat1=lat1, lat2=lat2, lon1=lon1, lon2=360 - EPSILON)[1:]
+            right = messages[0].data(lat1=lat1, lat2=lat2, lon1=0, lon2=lon2)[1:]
+            lats, lons = (np.concatenate((l, r), axis=1) for l, r in zip(left, right))
+        else:
+            box = dict(lat1=lat1, lat2=lat2, lon1=lon1, lon2=lon2)
+            lats, lons = messages[0].data(**box)[1:]
+            print(f"preprocessing {grib_file_path} within {box}")
         analysis_date = messages[0].analDate.isoformat()
         lats = [x[0] for x in lats]
         lons = list(lons[0])
@@ -64,7 +70,12 @@ def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
                 sys.stdout.write(f"\r\t\tindexing {m.shortName}@{m.level}hPa")
                 sys.stdout.flush()
                 alt_idx = alt_idx_dict[m.level]
-                (data, _, _) = m.data(**box)
+                if lon1 < lon2:
+                    data = m.data(**box)[0]
+                else:
+                    left = messages[0].data(lat1=lat1, lat2=lat2, lon1=lon1, lon2=360 - EPSILON)[0]
+                    right = messages[0].data(lat1=lat1, lat2=lat2, lon1=0, lon2=lon2)[0]
+                    data = np.concatenate((left, right), axis=1)
                 for lon_idx in range(len(lons)):
                     for lat_idx in range(len(lats)):
                         datum = data[lat_idx][lon_idx]
