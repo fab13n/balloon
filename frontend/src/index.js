@@ -162,12 +162,16 @@ function draw_point(p) {
 }
 
 function update_trajectory_table(geoJSON) {
+    const coords = (p) =>
+        Math.abs(p.y) + "°" + (p.y>=0?"N":"S") + ";" + Math.abs(p.x) + "°" + (p.x>=0?"W":"E") + "@" +
+        p.z[0] + "…" + p.z[1] + "m";
     d3.select("#trajectory_table")
         .style('display', null) // show again
         .selectAll("tr.item").data(geoJSON.features.map(p => p.properties)).enter()
         .append("tr")
         .attr("class", "item")
         .html(p => `
+            <td>${coords(p.cell)}</td>
             <td>${p.time.split('T')[1]}</td>
             <td>${p.pressure}hPa</td>
             <td>${p.volume ? p.volume+'m³' : '&mdash;'}</td>

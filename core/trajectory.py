@@ -85,10 +85,18 @@ def trajectory(balloon, column_extractor, p0, t0):
 
     # Compute the drifts north-ward and east-ward, in each cell, of the ascending balloon.
 
+    traj = []
+    time = t0
+    position = p0
+    burst = False
+    column = column_extractor.extract(time, position)
+    i = 0
+
     def make_traj_point(cell, position, time, speed_ms, volume=None):
         """
         Generate a new trajectory point, update latest position and time
         """
+        direction = +1 if speed_ms > 0 else -1
         r = round
         t = cell.height_m / abs(speed_ms)
         drift = [cell.u_ms * t, cell.v_ms * t]
@@ -96,8 +104,9 @@ def trajectory(balloon, column_extractor, p0, t0):
         time += timedelta(seconds=t)
         point = {
             'speed': {'x': r(cell.u_ms, 1), 'y': r(cell.v_ms, 1), 'z': r(speed_ms, 1)},
-            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': r(cell.height_m), 't': r(t)},
+            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': direction * r(cell.height_m), 't': r(t)},
             'position': {'x': r(position[0], 4), 'y': r(position[1], 4), 'z': r(cell.z_m)},
+            'cell': {'x': column.position[0], 'y': column.position[1], 'z': [cell.z0_m, cell.z0_m+cell.height_m]},
             'pressure': cell.p_hPa,
             'rho': r(cell.rho_kg_m3, 3),
             'temp': r(cell.t_K + 273.15),
@@ -107,13 +116,6 @@ def trajectory(balloon, column_extractor, p0, t0):
             point['volume'] = r(volume, 1)
         return (point, position, time)
 
-    traj = []
-    time = t0
-    position = p0
-    burst = False
-    column = column_extractor.extract(time, position)
-
-    i = 0
     # Skip underground cells
     while column.cells[i] is None:
         i += 1
@@ -146,7 +148,7 @@ def trajectory(balloon, column_extractor, p0, t0):
     # TODO: drift within the bursting cell: apply proportionally to the bursting altitude within cell?
 
     # Drifts on the way down, at parachute speed
-    for cell in reversed(column.cells[:bursting_cell_index]):
+    for (i, cell) in enumerate(reversed(column.cells[:bursting_cell_index])):
         if cell is None:
             break  # Underground
         print(f"(--) back to {cell.z_m}m, {cell.p_hPa}hPa")
