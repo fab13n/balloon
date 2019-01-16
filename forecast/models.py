@@ -275,6 +275,60 @@ class ArpegeEurope(ArpegeCommon):
     validity_offsets = _make_validity_offsets("0-12 13-24 25-36 37-48 49-60 61-72 73-84 85-96 97-102 103-114", 1)
     grib_constants_url = "https://donneespubliques.meteofrance.fr/donnees_libres/Static/gribsConstants/ARPEGE_0.1_CONSTANT.grib"
 
+class GfsHalfDegree(GribModel):
+    name = 'GFS'
+    grid_pitch = 0.5
+    time_pitch = timedelta(hours=3)
+    analysis_offsets = _make_analysis_offsets("0 6 12 18")
+    validity_offsets = ((timedelta(hours=i), timedelta(hours=i)) for i in range(0, 385, 3))
+
+    url_pattern = \
+        "http://dcpc-nwp.meteo.fr/services/PS_GetCache_DCPCPreviNum?" + \
+        "token=__5yLVTdr-sGeHoPitnFc7TZ6MhBcJxuSsoZp6y0leVHU__&" + \
+        "model=%(name)s&" + \
+        "grid=%(grid_pitch)s&" + \
+        "package=IP1&" + \
+        "time=%(first_offset)sH%(last_offset)sH&" + \
+        "referencetime=%(analysis_date)s&" + \
+        "format=grib2"
+
+    def download_file(self, fileref):
+        MEGABYTE = 1024 * 1024
+        offsets = sorted("%02d" % int(d / timedelta(hours=1)) for d in fileref.forecast_offsets)
+        url = self.url_pattern % {
+            'name':          self.name,
+            'grid_pitch':    str(self.grid_pitch),
+            'first_offset':  offsets[0],
+            'last_offset':   offsets[-1],
+            'analysis_date': fileref.analysis_date.strftime("%Y-%m-%dT%H:%M:%SZ")}
+        output = Path(str(fileref.__fspath__())+".part")
+        try:
+            print(f"\t? Trying to download {output}\n\tfrom {url}")
+            with urlopen(url) as input:
+                if input.status > 299:
+                    print(f"\t- Error {input.status}: {input.msg}")
+                    return None
+                output.parent.mkdir(parents=True, exist_ok=True)
+                with output.open('wb') as output_buffer:
+                    for i in range(sys.maxsize):
+                        sys.stdout.write(f"\r\t+ {i}MB")
+                        sys.stdout.flush()
+                        chunk = input.read(MEGABYTE)
+                        if not chunk:
+                            break
+                        output_buffer.write(chunk)
+                        output_buffer.flush()
+
+            output.rename(fileref.__fspath__())
+            print(f" Saved to {fileref.__fspath__()}")
+            return output
+        except HTTPError as e:
+            print(f"\t- HTTP error {e.code}: {e.msg}")
+            return None
+
+
+
+
 
 grib_models = {
     'ARPEGE_0.5': ArpegeGlobal(),
