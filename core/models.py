@@ -76,7 +76,7 @@ class Cell(object):
         else:
             # TODO: we can probably get a better estimate from pressure without relative humidity
             self.rho_kg_m3 = self.chapman_density()
-        self.height_m = None  # Can only be filled once in a `Column`
+        self.height_m, self.z0_m = None, None  # Can only be filled once in a `Column`
 
     def chapman_density(self):
         """
@@ -108,7 +108,7 @@ class Cell(object):
         Allows to convert relative humidity and pressure into an accurate air density.
 
         Formula taken from somewhere on the Internets (https://www.omnicalculator.com/physics/air-density).
-        """
+         """
         t_C = t_K - 273.15
         p_dew_hPa = 6.1078 * 10 ** ((7.5 * t_C) / (t_C + 237.3))
         return p_dew_hPa
@@ -118,7 +118,7 @@ class Cell(object):
         Compute air density, in kg/m³, according to pressure, temperature and
         relative humidity (water weights around 18g/mol whereas air is around 30).
         """
-        p_vapor_hPa = self.sat_vapor_pressure(t_K) * rh_percents / 100  # partial vaport pressure
+        p_vapor_hPa = self.sat_vapor_pressure(t_K) * rh_percents / 100  # partial vapor pressure
         p_dry_hPa = p_hPa - p_vapor_hPa  # partial dry air pressure
         rho = p_dry_hPa * 100 / (R_DRY_J_kgK * t_K) + \
               p_vapor_hPa * 100 / (R_VAPOR_J_kgK * t_K)  # density
@@ -189,7 +189,7 @@ class Column(object):
 
         # Add heights to cells
         all_overground_cells = sorted_cells + extrapolated_cells
-        for (l0, l1, l2) in zip (all_overground_cells[0:], all_overground_cells[1:], all_overground_cells[2:]):
+        for (l0, l1, l2) in zip(all_overground_cells[0:], all_overground_cells[1:], all_overground_cells[2:]):
             # Boundaries for l1 are at (Z2+Z1)/2 and (Z1+Z0)/2, height is therefore (Z2-Z0)/2
             l1.height_m = (l2.z_m - l0.z_m) / 2
 
@@ -199,6 +199,12 @@ class Column(object):
         # For  last cell, we consider that z_m is in the middle of the cell.
         # The height is therefor twice the distance from last boundary (Zy+Zz)/2 to Zz.
         lz.height_m = lz.z_m - ly.z_m
+
+        # Add z limits z0 & z1
+        z = self.ground_altitude
+        for c in all_overground_cells:
+            c.z0_m = z
+            z = z + c.height_m if c.height_m else None
 
         underground_cells = i * [None]
         self.cells = underground_cells + all_overground_cells
