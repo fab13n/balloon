@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 IS_IN_DOCKER = Path("/.dockerenv").is_file()
@@ -142,12 +143,17 @@ LOGGING = {
         'docker-logs': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': '/home/balloon/log/django-debug.log',
+            'filename': '/home/balloon/log/django-debug.log' if IS_IN_DOCKER else BASE_PATH / "log/django-debug.log",
         },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'stream': sys.stdout
+        }
     },
     'loggers': {
         'django': {
-            'handlers': ['docker-logs'],
+            'handlers': ['docker-logs' if IS_IN_DOCKER else 'console'],
             'level': 'DEBUG',
             'propagate': True,
         },

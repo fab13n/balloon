@@ -99,7 +99,7 @@ class ColumnExtractor(object):
         column = Column(
             grib_model=self.model,
             position=position,
-            valid_date=date,
+            valid_date=self.model.round_time(date),
             analysis_date=parse(self.shape['analysis_date']),
             ground_altitude=self.extract_ground_altitude(position),
             cells=column,

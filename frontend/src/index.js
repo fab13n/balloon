@@ -163,8 +163,9 @@ function draw_point(p) {
 
 function update_trajectory_table(geoJSON) {
     const coords = (p) =>
-        Math.abs(p.y) + "°" + (p.y>=0?"N":"S") + ";" + Math.abs(p.x) + "°" + (p.x>=0?"W":"E") + "@" +
-        p.z[0] + "…" + p.z[1] + "m";
+        Math.abs(p.y) + "°" + (p.y >= 0 ? "N" : "S") + ";" + Math.abs(p.x) + "°" + (p.x >= 0 ? "W" : "E") + "@" +
+        p.z[0] + "…" + p.z[1] + "m," + p.t.match(/T(\d+)/)[1] + "h";
+    d3.selectAll("#trajectory_table tr.item").remove();
     d3.select("#trajectory_table")
         .style('display', null) // show again
         .selectAll("tr.item").data(geoJSON.features.map(p => p.properties)).enter()

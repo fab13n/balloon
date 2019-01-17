@@ -51,13 +51,15 @@ def trajectory(request):
 
     position = model.round_position((longitude, latitude))
 
-    balloon = m.Balloon(
-        ground_volume_m3=ground_volume_m3,
-        balloon_mass_kg=balloon_mass_kg,
-        payload_mass_kg=payload_mass_kg)
     extractor = extract.ColumnExtractor(
         model=model,
         extrapolated_pressures=range(1, 20))
+    column = extractor.extract(date, position)
+    balloon = m.Balloon(
+        ground_volume_m3=ground_volume_m3,
+        balloon_mass_kg=balloon_mass_kg,
+        payload_mass_kg=payload_mass_kg,
+        ground_pressure_hPa=column.ground_pressure)
     traj = core_trajectory.trajectory(
         balloon=balloon,
         column_extractor=extractor,

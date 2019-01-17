@@ -218,6 +218,12 @@ class Column(object):
         hp = self.grib_model.grid_pitch / 2.  # half-pitch
         return all(self.position[i]-hp <= position[i] <= self.position[i] + hp for i in range(2))
 
+    def is_closest_to_date(self, date):
+        """
+        Whether this column is the best one, in terms of valid_date, to describe this exact date.
+        """
+        return self.grib_model.round_time(date) == self.valid_date
+
     def _interpolate_altitude_pressure(self, Pa, Za, Pb, Zb, Pc=None, Zc=None):
         """
         interpolate pressure from altitude or conversely.

@@ -107,7 +107,8 @@ def trajectory(balloon, column_extractor, p0, t0):
             'speed': {'x': r(cell.u_ms, 1), 'y': r(cell.v_ms, 1), 'z': r(speed_ms, 1)},
             'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': direction * r(cell.height_m), 't': r(t)},
             'position': {'x': r(position[0], 4), 'y': r(position[1], 4), 'z': r(cell.z_m)},
-            'cell': {'x': column.position[0], 'y': column.position[1], 'z': [cell.z0_m, cell.z0_m+cell.height_m]},
+            'cell': {'x': column.position[0], 'y': column.position[1], 'z': [cell.z0_m, cell.z0_m+cell.height_m],
+                     't': column.valid_date.isoformat()},
             'pressure': cell.p_hPa,
             'rho': r(cell.rho_kg_m3, 3),
             'temp': r(cell.t_K + 273.15),
@@ -121,6 +122,7 @@ def trajectory(balloon, column_extractor, p0, t0):
     while column.cells[i] is None:
         i += 1
 
+    # TODO switch to a simpler while loop, like for descent
     while not burst:
         # Start in current altitude
         # Il faut faire autrement: que le modele vienne avec une liste de pressions, qu'on accede
@@ -132,13 +134,12 @@ def trajectory(balloon, column_extractor, p0, t0):
             if v_m3 > balloon.burst_volume_m3:
                 # Burst altitude reached: stop the loop going up, start going down
                 logging.info(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
-                bursting_cell_index = i
                 burst = True
                 break
             i += 1  # Keep track of index in case we change column
             (point, position, time) = make_traj_point(cell, position, time, speed_up_ms(balloon, cell), volume=v_m3)
             traj.append(point)
-            if not column.does_contain_point(position):
+            if not column.does_contain_point(position) or not column.is_closest_to_date(time):
                 break
         else:  # The loop didn't break, we reached the top cell without bursting
             raise ValueError("The balloon doesn't burst in the cells provided")
@@ -148,13 +149,17 @@ def trajectory(balloon, column_extractor, p0, t0):
 
     # TODO: drift within the bursting cell: apply proportionally to the bursting altitude within cell?
 
-    # Drifts on the way down, at parachute speed
-    for (i, cell) in enumerate(reversed(column.cells[:bursting_cell_index])):
-        if cell is None:
-            break  # Underground
+    # Drifts on the way down, at parachute speed. Index `i` is still at the cell index where the balloon burst.
+    while i >= 0:
+        cell = column.cells[i]
+        if cell is None:  # On ground
+            break
         logging.info(f"(--) back to {cell.z_m}m, {cell.p_hPa}hPa")
         (point, position, time) = make_traj_point(cell, position, time, -speed_down_ms(balloon, cell))
         traj.append(point)
+        if not column.does_contain_point(position) or not column.is_closest_to_date(time):
+            column = column_extractor.extract(time, position)
+        i -= 1
 
     return traj
 
