@@ -19,7 +19,7 @@
     "babel-polyfill": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "babel-preset-stage-0": "^6.24.1",
-    "webpack-cli": "^2.1.5",
+    "webpack-cli": "^3.2.1",
     "webpack-dev-server": "^3.1.4"
   },
   "dependencies": {
@@ -29,7 +29,6 @@
     "html-webpack-plugin": "^3.2.0",
     "numeral": "^2.0.6",
     "ol": "^4.6.5",
-    "webpack": "^4.8.3",
-    "webpack-cli": "^3.1.2"
+    "webpack": "^4.8.3"
   }
 }

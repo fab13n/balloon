@@ -53,7 +53,7 @@ def preprocess(grib_file_path, lat1, lat2, lon1, lon2, force=False):
             np_file_path = grib_file_path.parent / (basename+".np")
             shape_file_path = grib_file_path.parent / (basename+".json")
             if not force and shape_file_path.is_file():
-                # Check if their is a preprocessed file at least as recent as this one.
+                # Check if there is a preprocessed file at least as recent as this one.
                 with shape_file_path.open() as f:
                     previous_analysis = json.load(f).get('analysis_date', "")
                 if previous_analysis >= analysis_date:
