@@ -1,4 +1,4 @@
 # minutes hours day1-31 month1-12 day1-7 command
-0 3 * * * /home/balloon/backend/manage.py forecast_download > /homme/balloon/logs/$(date)-download.txt 2>&1
-0 5 * * * /home/balloon/backend/manage.py forecast_preprocess > /homme/balloon/logs/$(date)-preprocess.txt 2>&1
-# TODO Erase old grib files
+0 3 * * * /home/balloon/backend/manage.py forecast_download > /home/balloon/log/download-$(date +%Y-%m-%dT%H:%MZ)-log 2>&1
+0 5 * * * /home/balloon/backend/manage.py forecast_preprocess > /home/balloon/log/preprocess-$(date +%Y-%m-%dT%H:%MZ)-log 2>&1
+0 2 * * * find . -name '*.grib2' -mtime +2 -exec rm {} \;
