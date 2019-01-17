@@ -6,7 +6,7 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="stylesheet" href="ol.css"/>
     <style type="text/css">
-        h1, h3, p, li, td, th {
+        h1, h2, h3, p, li, td, th {
             font-family: 'sans-serif';
         }
         td {
@@ -71,10 +71,19 @@
           text-align: left;
         }
         #trajectory_table tr:hover {
-            background-color: lightpink;
+              background-color: lightpink;
         }
         table select { width: 100%; background-color: white; }
         table input[type=button] { width: 100%; }
+
+        #explications {
+	    width: 60em;
+	    margin-left: auto;
+	    margin-right: auto;
+        }
+		span.code {
+		    font-family: monospace;
+		}
    </style>
 </head>
 
@@ -83,9 +92,17 @@
   <h1>Prévision de trajectoire ballon</h1>
 
   <p>
-      Cette application permet de prévoir la trajectoire d'un ballon, d'après ses caractéristiques physiques
-      et les prévisions météo de MeteoFrance ou de la NOAA. Elle est très largement inspirée par le tableur
-      développé par Michel Maignan pour Planète Sciences.
+      Cette application permet de prévoir la trajectoire d'un ballon,
+      d'après ses caractéristiques physiques et les prévisions
+      météo <a href="https://donneespubliques.meteofrance.fr/?fond=rubrique&id_rubrique=30">
+      de MeteoFrance </a>
+      ou <a href="https://www.nco.ncep.noaa.gov/pmb/products/gfs/"> de
+      la NOAA</a>. Elle est inspirée par un tableur développé par
+      Michel Maignan
+      pour <a href="https://www.planete-sciences.org">Planète
+      Sciences</a>. Ses sources sont disponibles librement, sous
+      license MIT, <a href="https://github.com/fab13n/balloon">sur
+      GitHub</a>.
   </p>
 
   <table id="form_and_position_details"><tr><td>
@@ -193,94 +210,348 @@
       </tr>
   </table>
 
-<h2>Méthode de simulation</h2>
+<div id="explications">
+  <h2>Méthode de simulation</h2>
 
   <h3>Atmosphère</h3>
 
-  <p>Les prévisions météo sont fournies en grille, à des points fixes en
-    latitude, longitude et pression (les avions mesurent leur altitude en
-    pressions et non en mètres, si bien que les services météo ne fournissent
-    de données indexées en mètres que jusqu'à 3000m, très insuffisants pour
-    des ballons à hélium). Les prévisions ont une date d'analyse
-    à laquelle elles sont publiées, et une date de validité qui est la
-    date décrite/prédite, en général dans le futur. Pour chaque point de grille,
-    on a entre autres les données suivantes :</p>
+  <p>Les prévisions météo sont fournies en grille, à des points fixes
+    en latitude, longitude et pression. Les avions mesurent leur
+    altitude en pressions et non en mètres, si bien que les services
+    météo ne fournissent de données indexées en mètres que jusqu'à
+    3000m, très insuffisants pour des ballons à hélium. Les «
+    altitudes » sont donc données à des niveaux standard 1000hPa,
+    950hPa, 925hPa etc., dont la hauteur en mètres au-dessus du niveau
+    de la mer ou du sol varie selon la météo.
+  </p>
+
+  <p>Les prévisions ont une date d'analyse à laquelle elles sont
+    publiées, et une date de validité qui est la date décrite/prédite,
+    en général dans le futur. Pour chaque point de grille, on a entre
+    autres les données suivantes :</p>
 
   <ul>
-    <li>Géopotentiel : divisé par l'attraction terrestre G=9.81m/s², il donne
-      l'altitude au dessus du niveau moyen de la mer (dite « above MSL » en anglais),
-      y compris lorsqu'on n'est pas au-dessus de la mer (m²/s²);</li>
+    <li>Géopotentiel : divisé par l'attraction terrestre G = 9.81m/s²,
+      il donne l'altitude au dessus du niveau moyen de la mer (dite «
+      above MSL » en anglais), y compris lorsqu'on n'est pas au-dessus
+      de la mer (m²/s²);</li>
     <li>Composantes est→ouest et sud→nord du vent U et V (m/s);</li>
     <li>Température T (°K) ;</li>
     <li>Humidité relative R (pourcentage).</li>
   </ul>
 
-<p>En outre, on dispose pour chaque modèle d'une grille d'altitude du sol
-  par rapport au niveau moyen de la mer MSL (m).</p>
+  <p>En outre, on dispose pour chaque modèle d'une grille constante
+	d'altitude du sol par rapport au niveau moyen de la mer MSL
+	(m).</p>
 
-<p>Ces données sont fournies librement sur Internet, sous le format
-GRIB2. Les données étant assez lentes à extraire du GRIB, on ne garde
-que celles qui nous intéressent, et on les préindexe sous forme de
-tableaux [numpy](http://www.numpy.org) persistés en mémoire avec
-quelques méta-données. Cela permet de les ré-extraite quasi
-instantanément lorsqu'une nouvelle trajectoire est demandée.</p>
+  <p>Ces données sont fournies librement sur Internet, sous le format
+	GRIB2. Les données étant assez lentes à extraire du GRIB, on ne
+	garde que celles qui nous intéressent, et on les préindexe sous
+	forme de tableaux <a href="http://www.numpy.org">numpy</a>
+	persistés en mémoire avec quelques méta-données. Cela permet de
+	les ré-extraite quasi instantanément lorsqu'une nouvelle
+	trajectoire est demandée.</p>
 
-<p>On extrapole les points de grilles en cellules, des « cubes
-d'atmosphère », dont les limites sont à mi-distance de chaque point de
-grille en X, Y, Z et T (si un vol dure plus longtemps qu'un pas de
-prévision, il peut panacher des prévisions à plusieurs échéances de
-temps. Comme les niveaux sont constants en pression et non en
-altitude, les limites supérieures et inférieures en Z ne sont pas
-forcément les mêmes entre deux colonnes X/Y/T différentes. Le bas de
-la première cellule est coupé à l'altitude du sol (et il faut parfois
-éliminer des cellules sous-terraines), la cellule du haut à n'a pas de
-plafond. Les conditions U, V, T° et R sont supposées constantes au
-sein d'une cellule.</p>
+  <p>On extrapole les points de grilles en cellules, des « cubes
+	d'atmosphère » horodatés, dont les limites sont à mi-distance de
+	chaque point de grille en X, Y, Z et T (si un vol dure plus
+	longtemps qu'un pas de prévision, on peut panacher des prévisions
+	à plusieurs échéances de temps. Comme les niveaux sont constants
+	en pression et non en altitude, les limites supérieures et
+	inférieures en Z ne sont pas forcément les mêmes entre deux
+	colonnes X/Y/T différentes. Le bas de la première cellule est
+	coupé à l'altitude du sol (et il faut parfois éliminer des
+	cellules sous-terraines), la cellule du haut à n'a pas de
+	plafond. Les conditions U, V, T° et R sont supposées constantes au
+	sein d'une cellule.</p>
 
-<h3>Ballon</h3>
+  <p>Tous les modèles ne montent pas assez haut, jusqu'à la pression
+	d'éclatement du ballon. Mais le ballon passe peu de temps aux
+	hautes altitudes(peu d'air pour le freiner, il va vite), et les
+	conditions météo au-dessus de la tropopause sont généralement plus
+	calmes et stables, donc il y dérive peu et uniformément. On
+	extrapole, à partir des 2 dernières cellules, en supposant les
+	vents et températures constants, et on détermine les paramètres P0
+	et K qui permettent à la pression de suivre une courbe
+	exponentielle P(z) = P0·e^(-K·z).
+  </p>
 
-<p>Le ballon est soumis à plusieurs forces : son poids, la poussée
-d'Archimède et la trainée aérodynamique (du ballon à la montée, du
-parachute à la descente). Pour les approximer, on s'appuie sur un
-modèle développé en grande partie par Michel Maignan pour Planète
-Sciences.</p>
+  <h3>Ballon</h3>
 
-<p>La poussée d'Archimède est constante, égale au poids d'air
-déplacé : le volume d'hélium au sol, multiplié par la masse volumique
-de l'hélium au sol (1.116 kg/m³) et G (9.81 m/s²). Il faut en
-soustraire le poids de l'ensemble ballon+nacelle, M·G, et on obtient
-les forces statiques sur le ballon.</p>
+  <p>Le ballon est soumis à plusieurs forces :</p>
 
-<p>Il subit également une force dynamique, la traînée aérodynamique,
-et sa vitesse s'équilibre lorsque la trainée égale les forces
-statiques.  La trainée vaut F = ½·ρ·S·Cx·V², où ρ est la densité de
-l'air, S la surface frontale su ballon (un cercle de même diamètre que
-la sphère du ballon), Cx un paramètre empirique propre à la forme du
-ballon (ici 0.45), et V la vitesse. On résoud pour la vitesse, soit V
-= √(2F / ρ·S·Cx), où F est égal à la somme des forces
-statiques ci-dessus. Restent à déterminer ρ et S.</p>
+  <ul>
+	<li>son poids vers le bas ;</li>
+	<li>la poussée d'Archimède vers le haut ;</li>
+	<li> la trainée aérodynamique, dans le sens opposé au mouvement
+	  (traînée du ballon à la montée, du parachute à la descente).
+	</li>
+  </ul>
 
-<p>La surface S se déduit de V = 4/3·π·R³ et S = π·R², en résolvant la
-première équation pour R : S = π·(3/4·V/π)^(2/3).</p>
+  <p> Pour les approximer, en particulier la on, traînée s'appuie sur
+	un modèle développé en grande partie par Michel Maignan pour
+	Planète Sciences.</p>
 
-<p>La densité de l'air ρ est la somme des pressions partielles d'air
-et de vapeur, divisées par leurs constantes de gaz spécifiques , 287
-J/kg/K et 461 J/kg/K respectivement. La pression partielle d'eau n'est
-pas donnée directement, mais peut être déduite de l'humidité
-relative : l'humidité relative est à 100% quand on est au point de
-rosée pour une combinaison donnée température + pression partielle
-d'eau, et ce point se calcule comme p = 6.1078 · 10^(7.5·t / t+237.3),
-pour une température en °C donnée. La pression partielle d'air est la
-différence entre la pression totale et la PP d'eau. NB: pas sûr que ce
-calcul change significativement la vitesse ; approximer avec de l'air
-sec pour simplifier, si ça n'est pas significatif.</p>
+  <p>La poussée d'Archimède est constante, égale au poids d'air
+	déplacé : le volume d'hélium au sol, multiplié par la masse
+	volumique de l'hélium au sol (1.116 kg/m³) et G (9.81 m/s²). Il
+	faut en soustraire le poids de l'ensemble ballon+nacelle, M·G, et
+	on obtient les forces statiques sur le ballon (le ballon gonfle en
+	volume quand la pression baisse, mais comme le nombre de molécules
+	d'air par m² décroit à la même vitesse, ça s'annule).</p>
 
-<p>À la redescente, la vitesse du ballon est calculée de façon
-similaire, si ce n'est que sa masse est allégée du poids de
-l'enveloppe éclatée, que le Cx du parachute est supérieur à celui du
-balon (empiriquement 1.4), et sa surface plus petite et constante
-(65cm de rayon).</p>
+  <p>Il subit également une force dynamique, la traînée aérodynamique,
+	et sa vitesse s'équilibre lorsque la traînée égale les forces
+	statiques.  La traînée vaut F = ½·ρ·S·Cx·V², où ρ est la densité
+	de l'air, S la surface frontale su ballon (un cercle de même
+	diamètre que la sphère du ballon), Cx un paramètre empirique
+	propre à la forme du ballon (ici 0.45), et V la vitesse. On résoud
+	pour la vitesse, soit V = √(2F / ρ·S·Cx), où F est égal à la somme
+	des forces statiques ci-dessus. Restent à déterminer ρ et S.</p>
 
-  <script type="text/javascript" src="index_bundle.js"></script>
+  <p>La surface S se déduit de V = 4/3·π·R³ et S = π·R². On la veut en
+	fonction du volume V et pas du rayon R, donc on résoud la première
+	équation pour R, et on réinjecte le résultat dans la seconde :
+	S = π·(3/4·V/π)^(2/3).</p>
+
+  <p>La densité de l'air ρ est la somme des pressions partielles d'air
+	et de vapeur, divisées par leurs constantes de gaz spécifiques ,
+	287 J/kg/K et 461 J/kg/K respectivement. La pression partielle
+	d'eau n'est pas donnée directement, mais peut être déduite de
+	l'humidité relative : l'humidité relative est à 100% quand on est
+	au point de rosée pour une combinaison donnée température +
+	pression partielle d'eau, et ce point se calcule comme p = 6.1078
+	· 10^(7.5·t / t+237.3), pour une température en °C donnée. La
+	pression partielle d'air est la différence entre la pression
+	totale et la PP d'eau. NB: pas sûr que ce calcul change
+	significativement la vitesse ; à simplifier avec de l'air sec, si
+	la différence n'est pas significative.</p>
+
+  <p>À la redescente, le calcul de vitesse du ballon est transformé
+	comme suit :</p>
+
+  <ul>
+	<li>la masse est allégée du poids de l'enveloppe éclatée ;</li>
+	<li>la poussée d'Archimède devient négligeable ;</li>
+	<li>le Cx du parachute est différent de celui du ballon
+	  (empiriquement 1.4), et sa surface constante (toujours π·R²,
+	  mais R=65cm).</li>
+  </ul>
+
+  <h3>Trajectoire</h3>
+
+  <p>La trajectoire est estimée sans tenir compte des accélérations et
+	décélerations du ballons: on le suppose en permanence à sa vitesse
+	d'équilbre entre poussés+poids et traînée aérodynamique, et donc à
+	vitesse constante au sein d'une même cellule. Avec la vitesse du
+	ballon et la hauteur de chaque cellule, on calcule le temps qu'y
+	passe le ballon, et pendant lequel il subit la dérive du vent dans
+	cette cellule. On obtient ainsi des dérives Nord-Sud et Est-Ouest
+	du ballon à chaque altitude à la montée et à la redescente, qu'on
+	additionne pour produire une trajectoire complète.</p>
+
+  <h2>Organisation du code</h2>
+
+  <p>L'application est packagée sous forme d'un container
+	Docker. L'acquisition, le pré-processing des données brutes et le
+	calcul de trajectoires sont faits en Python 3.6, sous forme d'une
+	application Django 2. La page web est écrite dans la variante ES7
+	de Javascript, traduite et packagée par Babel et Webpack. Les
+	données entre le serveur et l'application web circulent en JSON /
+	AJAX.</p>
+
+  <h3>Modules Django</h3>
+
+  <ul>
+	<li><span class='code'>balloon</span> les réglages principaux :
+	  <span class='code'>balloon.settings</span> la configuration
+	  Django, <span class='code'>balloon.urls</span> les liens entre URL et fonctions
+	  Python qui les servent, <span class='code'>balloon.wsgi</span> le lanceur pour
+	  serveurs web.
+	</li>
+	<li><span class='code'>forecast</span> la gestion des prévisions météo :
+	  <ul>
+		<li>Dans <span class='code'>forecast.models</span> les descriptions de
+		  modèles météo, la taille et la finesse des grilles
+		  couvertes, les dates d'analyse, les dates décrites, la façon
+		  de télécharger de nouveaux fichiers, des fonctions pour
+		  arrondir positions et dates aux valeurs les plus proches
+		  disponibles dans la grille. Les modèles s'appuient sur une
+		  classe auxilliaire <span class='code'>FileRef</span>, qui décrit un fichier
+		  de prévision, qu'il soit déjà chargé localement, pas encore
+		  récupéré, ou même pas encore produit par le service de
+		  prévisions.
+		</li>
+		<li><span class='code'>forecast.preprocess</span> Ouvre un fichier GRIB, et
+		  s'il contient des données plus récentes que celles déjà
+		  disponibles, les extrait sous forme de tableaux numpy (un
+		  par date de validité) et les persiste dans des fichiers :
+		  pour chaque échéance un fichier <span class='code'>&lt;date&gt;.np</span>
+		  qui contient les données brutes vent, temperature, altitude
+		  et humidité, et un fichier <span class='code'>&lt;date&gt;.json</span> qui
+		  contient les méta-données indices de
+		  latitude/longitude/altitude, et date de production de
+		  l'analyse.
+		</li>
+		<li><span class='code'>forecast.extract</span> implémente une
+		  classe <span class='code'>ColumnExtractor</span>, capable d'extraire des
+		  colonnes d'atmosphere (données vent U+V, T°, humidité à
+		  toutes les altitudes pour un X/Y, une date et un modèle
+		  donnés) de fichiers numpy produits
+		  par <span class='code'>forecast.preprocess</span>. Elle est également
+		  capable de lister les forecasts effectivement disponibles
+		  par date pour un modèle donné.</li>
+		<li><span class='code'>forecast.views</span> contient les fonctions répondant
+		  effectivement aux requêtes web du
+		  navigateur: <span class='code'>list_files()</span> pour lister les
+		  prévisions effectivement disponibles (délégué
+		  à <span class='code'>ColumnExtractor</span>) et <span class='code'>altitude()</span> qui
+		  retourne l'altitude du sol par rapport à la mer à un X/Y
+		  donné, lui aussi en déléguant à un <span class='code'>ColumnExtractor</span>.
+		</li>
+		<li><span class='code'>forecast.management.commands.forecast_download</span>,
+		  implémentation d'une commande shell qui récupère les
+		  derniers fichiers GRIB pour les modèles actifs. La commande
+		  est lancée, comme toute commande Django, avec
+		  <span class='code'>./manage.py forecast_download [args]</span>.
+		  L'essentiel du travail est délégué à la méthode
+		  <span class='code'>download_forecasts()</span> des modèles météo dans
+		  <span class='code'>forecast.models</span>. Cette commande est destinée à
+		  être lancée régulièrement en tâche de fond, comme <em>cron job</em>.
+		</li>
+		<li><span class='code'>forecast.management.commands.forecast_preprocess</span>,
+		  autre commande shell qui lance le processing des nouveaux
+		  fichiers GRIB en fichiers numpy préindexés. Elle aussi est
+		  sensée être lancée sous forme de cron job, bien qu'on puisse
+		  le faire aussi à la main.
+		</li>
+	  </ul><!-- fin de forecast -->
+	</li>
+	<li><span class='code'>core</span> est le cœur calculatoire de l'application,
+	  celui qui calcule effectivement les trajectoires.
+	  <ul>
+		<li><span class='code'>core.models</span> contient les modèles d'objets sur
+		  lesquels on travaille pour produire les trajectoires.
+		  <ul>
+			<li><span class='code'>Balloon</span> contient les données essentielles
+			  d'un aéronef: masse, quantité d'hélium, poussée résultante,
+			  volume à l'éclatement etc.</li>
+			<li><span class='code'>Cell</span> une cellule d'atmosphere, à une
+			  position X/Y/Z et une date données. La classe contient
+			  des données extraites de tableaux numpy (vent,
+			  temperature, altitude / pression) et la densité locale
+			  de l'air recalculée, si possible d'après pression et
+			  humidité relative, à défaut par la formule approchée de
+			  Chapman.
+			</li>
+			<li><span class='code'>Column</span> une séquence verticale de
+			  cellules <span class='code'>Cell</span> pour un X/Y, une date et un
+			  modèle donnés, ainsi que l'altitude du sol à cet
+			  endroit, et optionellement des cellules extrapolées
+			  au-delà de la troposphère, si celles du modèle ne
+			  suffisent pas. Les cellules une fois insérées dans une
+			  colonne sont complétée : la cellule au sol est
+			  éventuellement tronquée au niveau du sol, et les limites
+			  entre cellules ainsi que leurs tailles sont calculées
+			  (on place la limite entre deux cellules à mi-distance du
+			  centre de chacune d'elles).
+			</li>
+		  </ul>
+		</li>
+		<li><span class='code'>core.trajectory</span> effectue le calcul de
+		  trajectoire à proprement parler. Il est constitué de
+		  fonctions mathématiques simples, correspondant aux formules
+		  données ci-dessus. La fonction principale
+		  <span class='code'>trajectory()</span> itère le long d'une
+		  <span class='code'>Column</span>, cellule après cellule, pour calculer et
+		  additionner les dérives appliquées par le vent au ballon,
+		  jusqu'à ce que le volume de l'enveloppe dépasse le volume
+		  d'éclatement. Alors une seconde boucle est parcourue, pour
+		  redescendre la colonne d'air jusqu'à ce que le sol soit
+		  atteint. Dans les deux boucles, la colonne est mise à jour
+		  chaque fois que la dérive a suffisamment déplacé le ballon
+		  pour change le poitn de grille modèle le plus proche. Enfin,
+		  une fonction de mise en forme <span class='code'>to_geojson()</span> encode
+		  le résultat sous le format standard géographique
+		  <a href="http://www.geojson.org">GeoJSON</a>, utilisé
+		  notamment par l'application d'affichage JavaScript.
+		</li>
+		<li><span class='code'>core.views</span>expose sous forme de service HTTP la
+		  fonction <span class='code'>trajectory()</span> ci-dessus, ainsi qu'un
+		  extracteur de colonne d'atmosphère.
+		</li>
+	  </ul>
+	</li><!-- fin de core -->
+  </ul><!-- fin des modules Django -->
+
+  <h3>Application de visualisation</h3>
+
+  <p>L'appli de visualisation est réalisée en EcmaScript7 (JavaScript
+	norme 2017), et s'appuie largement sur la librairie de
+	présentation de données <a href="http://www.d3js.org">D3.js</a>,
+	ainsi que sur la librairie d'affichage cartographique
+	<a href="http://openlayers.org">OpenLayers</a>. Les tuiles de fond
+	de carte sont requêtées dynamiquement auprès de la base cartographique libre
+	<a href="http://www.openstreetmap.org">OpenStreetMap</a>.</p>
+
+  <p>Les paramètres du lâcher sont entrées dans un formulaire HTML, implémenté dans
+	<span class='code'>frontend/src/index.html</span>. Certaines des options du
+	formulaire, telles que les dates du prévision disponibles,
+	viennent dynamiquement du serveur Django, et sont chargée par
+	AJAX, puis mises à jour dans les widgets par D3.js. Lorsque les
+	paramètres sont rentrés, une requête de trajectoire est envoyée au
+	serveur Django, qui répond avec une série de points de trajectoire
+	en GeoJSON, décorés de propriétés physiques et dynamiques
+	(cellule, vitesse, hauteur, date de passage, vent local…). Ces
+	données sont récupérées par la fonction
+	asynchrone <span class='code'>update_trajectory()</span>
+	dans <span class='code'>frontend/src/index.js</span>, transformées en points sur
+	la carte par <span class='code'>display_trajectory()</span>, et décrites dans une
+	table détaillée par <span class='code'>update_trajectory_table()</span>, en
+	utilisant encore une fois D3.js pour modifier dynamiquement le
+	DOM.</p>
+
+  <h3>Autres fichiers</h3>
+
+  <p>D'autres fichiers de configuration sont livrés avec
+	l'application, essentiellement pour permettre le déployement sous
+	Docker. On les retrouve dans <span class='code'>conf</span>, outre
+	le fichier <span class='code'>Dockerfile</span> à la racine, et les classiques
+	<span class='code'>.gitignore, .dockerignore, LICENSE</span>. Des
+	scripts utilitaires sont également disponibles, dont
+	le <span class='code'>manage.py</span> commun à tous les projets
+	Django, <span class='code'>run_docker.sh</span> qui permet de
+	faire tourner le docker en partageant les sources avec l'hôte pour
+	débugger, et <span class='code'>webpack.js</span> qui force la
+	recompilation de l'application JavaScript.</p>
+
+  <p>Le répertoire <span class='code'>data</span> est partagé avec le
+	Docker pour contenir les données météo, fichiers téléchargés et
+	tableaux pré-indexés. <span class='code'>log</span> contient les
+	traces d'exécutions produites à l'intérieur du Docker.</p>
+
+  <p>La liste des fichiers de configuration du container, qui seront
+	utilisés lors de la construction en suivant
+	<span class='code'>Dockerfile</span>, et réunis
+	dans <span class='code'>conf/</span>, est la suivante :</p>
+
+  <ul>
+	<li><span class='code'>append-to-bashrc.sh</span> rajoute des
+	  réglages commodes au profile bash interne au container, pour le
+	  confort de debuggage ;</li>
+	<li><span class='code'>balloon.cron</span> contient les tâches à
+	  lancer périodiquement, download, pré-indexage et effacement des vieux fichiers ;</li>
+	<li><span class='code'>entrypoint.sh</span> lance le processus
+	  principal du container, ici le serveur nginx ;</li>
+	<li><span class='code'>nginx.conf</span> la configuration du
+	  serveur web, qui tente d'abord de servir les fichiers de l'appli
+	  web, et s'il n'y en a pas correspondant à la requête, en délègue le traitement à Django ;</li>
+	<li><span class='code'>uwsgi.ini</span> la config de la passerelle
+	  nginx / Python, qui permet au serveur web d'invoquer l'application Django.</li>
+  </ul>
+
+</div>
+
+<script type="text/javascript" src="index_bundle.js"></script>
 </body>
 </html>
