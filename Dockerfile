@@ -39,7 +39,7 @@ RUN pip3 install\
     psycopg2-binary\
     python-dateutil\
     pytz\
-	requests\
+    requests\
     uwsgi
 
 # Node.js packages

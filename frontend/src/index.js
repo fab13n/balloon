@@ -268,6 +268,12 @@ window.update_trajectory = update_trajectory;
 update_available_dates();
 update_suggestions();
 
+const GITHUB_PREFIX = 'http://github.com/fab13n/balloon/blob/master/';
+d3.selectAll('a.path')
+    .each(function() {
+        let e = d3.select(this);
+        e.attr('href', GITHUB_PREFIX + e.attr('href'));
+    });
 d3.select('[name=download_forecast]')
     .on('click', () => { window.location='download_forecast.html'; });
 d3.select('[name=update_trajectory]')
