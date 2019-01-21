@@ -146,13 +146,18 @@ LOGGING = {
             'filename': '/home/balloon/log/django-debug.log' if IS_IN_DOCKER else BASE_PATH / "log/django-debug.log",
         },
         'console': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'stream': sys.stdout
         }
     },
     'loggers': {
         'django': {
+            'handlers': ['docker-logs' if IS_IN_DOCKER else 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'balloon': {
             'handlers': ['docker-logs' if IS_IN_DOCKER else 'console'],
             'level': 'DEBUG',
             'propagate': True,

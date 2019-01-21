@@ -5,6 +5,9 @@ import logging
 from .models import CX_PARACHUTE, CX_BALLOON, R_PARACHUTE_M, G, EARTH_RADIUS
 
 
+logger = logging.getLogger('balloon')
+
+
 def volume_m3(balloon, cell):
     """
     Volume of the gas in a balloon in a given cell
@@ -54,16 +57,52 @@ def apply_drift(position, drift):
     Compute the position resulting from applying the drift `(east, north)`, in meters, to a position
     `(lon, lat)` in degrees.
 
-    :param position:
-    :param drift:
+    Meters `m` are converted in angle degrees `d` with `m / 2πR = d / 360 ⇒ d = 180m / πR`,
+    with `R` the Earth radius for latitudes, and the meridian's radius `R·cos(latitude)` for longitudes
+
+    :param position: position in degrees
+    :param drift: drift to apply in meters
     :return: resulting (lon, lat) position in degrees.
     """
     (lon, lat) = position
-    (east, north) = drift
+    (east_m, north_m) = drift
 
-    return \
-        lon + math.degrees(math.atan(east/(EARTH_RADIUS * math.cos(lat)))), \
-        lat + math.degrees((math.atan(north/EARTH_RADIUS)))
+    north_d = (180 * north_m) / (math.pi * EARTH_RADIUS)
+    east_d = (180 * east_m) / (math.pi * EARTH_RADIUS * math.cos(math.radians(lat)))
+
+    return lon + east_d, lat + north_d
+
+
+def pos_string(p, z):
+    ns = "N" if p[1] >= 0 else "S"
+    ew = 'E' if p[0] >= 0 else "W"
+    return f"{p[1]:05.2f}{ns};{p[0]:04.2f}{ew}^{int(z):05d}m"
+
+
+def make_trajectory_point(column, cell, position, time, speed_ms, volume=None):
+    """
+    Generate a new trajectory point, update latest position and time
+    """
+    direction = +1 if speed_ms > 0 else -1
+    r = round
+    t = cell.height_m / abs(speed_ms)
+    drift = [cell.u_ms * t, cell.v_ms * t]
+    position = apply_drift(position, drift)
+    time += timedelta(seconds=t)
+    point = {
+        'speed': {'x': r(cell.u_ms, 1), 'y': r(cell.v_ms, 1), 'z': r(speed_ms, 1)},
+        'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': direction * r(cell.height_m), 't': r(t)},
+        'position': {'x': r(position[0], 4), 'y': r(position[1], 4), 'z': r(cell.z_m)},
+        'cell': {'x': column.position[0], 'y': column.position[1], 'z': [cell.z0_m, cell.z0_m+cell.height_m],
+                 't': column.valid_date.isoformat()},
+        'pressure': cell.p_hPa,
+        'rho': r(cell.rho_kg_m3, 3),
+        'temp': r(cell.t_K + 273.15),
+        'time': time.isoformat().split(".", 1)[0]+"Z"
+    }
+    if volume is not None:
+        point['volume'] = r(volume, 1)
+    return (point, position, time)
 
 
 def trajectory(balloon, column_extractor, p0, t0):
@@ -86,82 +125,51 @@ def trajectory(balloon, column_extractor, p0, t0):
 
     # Compute the drifts north-ward and east-ward, in each cell, of the ascending balloon.
 
-    traj = []
+    points = []
     time = t0
     position = p0
     burst = False
     column = column_extractor.extract(time, position)
     i = 0
 
-    def make_traj_point(cell, position, time, speed_ms, volume=None):
-        """
-        Generate a new trajectory point, update latest position and time
-        """
-        direction = +1 if speed_ms > 0 else -1
-        r = round
-        t = cell.height_m / abs(speed_ms)
-        drift = [cell.u_ms * t, cell.v_ms * t]
-        position = apply_drift(position, drift)
-        time += timedelta(seconds=t)
-        point = {
-            'speed': {'x': r(cell.u_ms, 1), 'y': r(cell.v_ms, 1), 'z': r(speed_ms, 1)},
-            'move': {'x': r(drift[0]), 'y': r(drift[1]), 'z': direction * r(cell.height_m), 't': r(t)},
-            'position': {'x': r(position[0], 4), 'y': r(position[1], 4), 'z': r(cell.z_m)},
-            'cell': {'x': column.position[0], 'y': column.position[1], 'z': [cell.z0_m, cell.z0_m+cell.height_m],
-                     't': column.valid_date.isoformat()},
-            'pressure': cell.p_hPa,
-            'rho': r(cell.rho_kg_m3, 3),
-            'temp': r(cell.t_K + 273.15),
-            'time': time.isoformat().split(".", 1)[0]+"Z"
-        }
-        if volume is not None:
-            point['volume'] = r(volume, 1)
-        return (point, position, time)
-
     # Skip underground cells
     while column.cells[i] is None:
         i += 1
 
-    # TODO switch to a simpler while loop, like for descent
-    while not burst:
-        # Start in current altitude
-        # Il faut faire autrement: que le modele vienne avec une liste de pressions, qu'on accede
-        # intelligement aux cells indexés par pression, en se faisant repondre None si on est sous terre,
-        #
-        for cell in column.cells[i:]:
-            v_m3 = volume_m3(balloon, cell)
-            logging.info(f"({i:02d}) at {cell.z_m}m, {cell.p_hPa}hPa, volume = {v_m3}m³")
-            if v_m3 > balloon.burst_volume_m3:
-                # Burst altitude reached: stop the loop going up, start going down
-                logging.info(f"(**) {v_m3}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
-                burst = True
-                break
-            i += 1  # Keep track of index in case we change column
-            (point, position, time) = make_traj_point(cell, position, time, speed_up_ms(balloon, cell), volume=v_m3)
-            traj.append(point)
-            if not column.does_contain_point(position) or not column.is_closest_to_date(time):
-                break
-        else:  # The loop didn't break, we reached the top cell without bursting
-            raise ValueError("The balloon doesn't burst in the cells provided")
-        if not burst:  # the for loop can exit because of overflow(exception raised), balloon burst, or exit of column
+    # Way up; we keep index `i` rather than iterating directly on the column,
+    # because there might be column changes due to drift and/or time passing.
+    while i < len(column.cells) and not burst:
+        cell = column.cells[i]
+        v_m3 = volume_m3(balloon, cell)
+        logger.info(f"({i:02d}) {pos_string(position, cell.z_m)}, {cell.p_hPa:>4d}hPa, volume = {int(v_m3)}m³")
+        if v_m3 > balloon.burst_volume_m3:
+            logger.info(f"(**) {int(v_m3)}m³ ≥ {balloon.burst_volume_m3}m³ => burst!")
+            burst = True
+            break
+        (point, position, time) = make_trajectory_point(column, cell, position, time, speed_up_ms(balloon, cell), volume=v_m3)
+        points.append(point)
+        i += 1
+        if not column.does_contain_point(position) or not column.is_closest_to_date(time):
             column = column_extractor.extract(time, position)
-            logging.info(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
+            logger.info(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
 
-    # TODO: drift within the bursting cell: apply proportionally to the bursting altitude within cell?
+    if not burst:  # the for loop can exit because of overflow(exception raised), balloon burst, or exit of column
+        raise ValueError("The balloon doesn't burst in the cells provided")
 
-    # Drifts on the way down, at parachute speed. Index `i` is still at the cell index where the balloon burst.
+    # Way down, at parachute speed. Index `i` is still at the cell index where the balloon burst.
     while i >= 0:
         cell = column.cells[i]
         if cell is None:  # On ground
             break
-        logging.info(f"(--) back to {cell.z_m}m, {cell.p_hPa}hPa")
-        (point, position, time) = make_traj_point(cell, position, time, -speed_down_ms(balloon, cell))
-        traj.append(point)
+        logger.info(f"({i:02d}) back to {pos_string(position, cell.z_m)}, {cell.p_hPa: 4d}hPa")
+        (point, position, time) = make_trajectory_point(column, cell, position, time, -speed_down_ms(balloon, cell))
+        points.append(point)
         if not column.does_contain_point(position) or not column.is_closest_to_date(time):
             column = column_extractor.extract(time, position)
+            logger.info(f"(**) Switching to column {column.position[0]}, {column.position[1]}")
         i -= 1
 
-    return traj
+    return points
 
 
 def to_geojson(trajectory):
