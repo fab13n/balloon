@@ -19,13 +19,15 @@ def list_files(request, grib_model):
     except KeyError:
         HttpResponseBadRequest("Unknown GRIB  model name")
 
-    longest_forecast = max(max(grib_model.validity_offsets))
     if 'from' in request.GET:
-        from_date = parse_date(request.GET['from'])
+        date_from = parse_date(request.GET['from'])
     else:
-        from_date = datetime.utcnow()
+        date_from = datetime.utcnow()
 
-    dates = ColumnExtractor(grib_model).list_files(from_date)
+    dates = ColumnExtractor(grib_model).list_files(date_from=date_from)
+    if len(dates) == 0:
+        dates = ColumnExtractor(grib_model).list_files(n=6)
+
     str_dates = {k.isoformat(): v.isoformat() for k, v in dates.items()}
 
     return JsonResponse(str_dates)

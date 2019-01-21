@@ -107,7 +107,7 @@ class ColumnExtractor(object):
 
         return column
 
-    def list_files(self, date_from=None):
+    def list_files(self, date_from=None, n=None):
         """
         Returns a dict `valid_date -> analysis_date` of weather files available for
         this model, optionally filtered by date (only those more recent in `valid_date`
@@ -122,7 +122,7 @@ class ColumnExtractor(object):
                 valid_date = datetime.strptime(shape_file.stem, '%Y%m%d%H%M')
             except ValueError:
                 continue  # Not a forecast file
-            if date_from is not None and valid_date < date_from:
+            if n is None and date_from is not None and valid_date < date_from:
                 continue
             try:
                 with shape_file.open() as f:
@@ -130,4 +130,9 @@ class ColumnExtractor(object):
             except Exception:
                 continue
             results[valid_date] = analysis_date
+
+        if n is not None:
+            # Only keep `n` most recent valid dates
+            results = {k: v for k, v in sorted(results.items(), reverse=True)[:n]}
+
         return results
