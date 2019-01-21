@@ -194,7 +194,7 @@ class GribModel(object):
             date = date + one_hour
         h = int((date.hour + pitch // 2) // pitch) * pitch
         midnight = date.replace(hour=0, minute=0, second=0, microsecond=0)
-        return midnigth + timedelta(hours=h)  # Also works if h ≥ 24
+        return midnight + timedelta(hours=h)  # Also works if h ≥ 24
 
 
 def _make_analysis_offsets(text):
